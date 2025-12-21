@@ -16,6 +16,9 @@ import OpenAI from "openai";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
+const prisma = new PrismaClient();
+
+
 export const runtime = "nodejs";
 
 // ============================================================================
