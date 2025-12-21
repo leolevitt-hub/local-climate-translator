@@ -1,0 +1,126 @@
+// ==============================
+// Prisma schema for climate_policy_db (Prisma 7 config-driven mode)
+// ==============================
+
+generator client {
+  provider = "prisma-client-js"
+  // FIX: ensure we are NOT using Accelerate/client engine for local ingestion.
+  // This prevents needing accelerateUrl/adapter and avoids P6001 with postgresql://.
+  engineType = "binary"
+}
+
+datasource db {
+  provider = "postgresql"
+  // Prisma 7 config-driven mode: datasource URL is provided via prisma.config.ts (env("DATABASE_URL"))
+}
+
+// ==============================
+// Core Policy Model
+// ==============================
+
+model Policy {
+  id                String   @id @default(cuid())
+
+  // Core metadata
+  title             String
+  summary           String?
+  jurisdictionCode  String   // e.g. "CT", "CA"
+  jurisdictionName  String   // e.g. "Connecticut"
+  level             String   // "state" | "local" | "federal"
+
+  status            String   // "passed" | "enacted" | "vetoed" | "proposed"
+  dateIntroduced    DateTime?
+  datePassed        DateTime?
+  dateEffective     DateTime?
+
+  // Optional classification
+  policyType        String?  // can store relevance label or a category
+
+  // Relations
+  tags              PolicyTag[]
+  sources           PolicySource[]
+  relevanceRules    PolicyRelevanceRule[]
+
+  // Timestamps
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([jurisdictionCode, level])
+  @@index([status])
+  @@index([datePassed])
+}
+
+// ==============================
+// Policy Tags (EV, heat pump, solar, etc.)
+// ==============================
+
+model PolicyTag {
+  id        String   @id @default(cuid())
+  policyId  String
+  tag       String   // e.g. "ev", "heat_pump", "solar", "efficiency"
+  policy    Policy   @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([policyId, tag])
+  @@index([tag])
+}
+
+// ==============================
+// Policy Sources (OpenStates, official sites, press)
+// ==============================
+
+model PolicySource {
+  id          String   @id @default(cuid())
+  policyId    String
+  url         String
+  sourceType  String   // "openstates" | "official" | "press_release"
+  name        String?  // "OpenStates" | "CT General Assembly"
+  externalId  String?  // OpenStates bill ID, etc.
+
+  retrievedAt DateTime @default(now())
+
+  policy      Policy   @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@index([sourceType])
+  @@index([externalId])
+}
+
+// ==============================
+// ZIP / Local Profile (personalization input cache)
+// ==============================
+
+model ZipProfile {
+  id          String   @id @default(cuid())
+  zipCode     String   @unique
+  city        String?
+  state       String?
+
+  latitude    Float?
+  longitude   Float?
+
+  utilityType String?  // "municipal" | "investor_owned"
+  climateZone String?  // IECC climate zone
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ==============================
+// Relevance Rules (who does this affect?)
+// ==============================
+
+model PolicyRelevanceRule {
+  id          String   @id @default(cuid())
+  policyId    String
+
+  dimension   String   // "income" | "housing" | "job" | "energy_source"
+  operator    String   // "equals" | "includes" | "gte" | "lte"
+  value       String   // e.g. "renter", "electric", "low_income"
+
+  explanation String?
+
+  policy      Policy   @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@index([dimension])
+}
