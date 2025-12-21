@@ -148,7 +148,7 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
               <select
                 value={formData.state}
                 onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition"
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition [&>option]:bg-zinc-900 [&>option]:text-white"
               >
                 <option value="CT">Connecticut</option>
                 <option value="CA">California (Coming Soon)</option>
@@ -174,7 +174,7 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
               <select
                 value={formData.housing_status}
                 onChange={(e) => setFormData({ ...formData, housing_status: e.target.value })}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition"
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition [&>option]:bg-zinc-900 [&>option]:text-white"
               >
                 <option>Renter</option>
                 <option>Owner</option>
@@ -190,7 +190,7 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
               <select
                 value={formData.property_type}
                 onChange={(e) => setFormData({ ...formData, property_type: e.target.value })}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition"
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition [&>option]:bg-zinc-900 [&>option]:text-white"
               >
                 <option>Apartment</option>
                 <option>Single-family home</option>
@@ -208,7 +208,7 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
               <select
                 value={formData.can_make_upgrades}
                 onChange={(e) => setFormData({ ...formData, can_make_upgrades: e.target.value })}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition"
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition [&>option]:bg-zinc-900 [&>option]:text-white"
               >
                 <option>Yes</option>
                 <option>No</option>
@@ -224,7 +224,7 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
               <select
                 value={formData.home_age}
                 onChange={(e) => setFormData({ ...formData, home_age: e.target.value })}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition"
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition [&>option]:bg-zinc-900 [&>option]:text-white"
               >
                 <option>Not sure</option>
                 <option>Less than 10 years</option>
@@ -242,7 +242,7 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
               <select
                 value={formData.current_heating}
                 onChange={(e) => setFormData({ ...formData, current_heating: e.target.value })}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition"
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition [&>option]:bg-zinc-900 [&>option]:text-white"
               >
                 <option>Not sure</option>
                 <option>Natural gas</option>
@@ -261,7 +261,7 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
               <select
                 value={formData.interested_in_solar}
                 onChange={(e) => setFormData({ ...formData, interested_in_solar: e.target.value })}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition"
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition [&>option]:bg-zinc-900 [&>option]:text-white"
               >
                 <option>Maybe</option>
                 <option>Yes, very interested</option>
@@ -289,7 +289,7 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
               <select
                 value={formData.has_car}
                 onChange={(e) => setFormData({ ...formData, has_car: e.target.value })}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition"
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition [&>option]:bg-zinc-900 [&>option]:text-white"
               >
                 <option>Yes</option>
                 <option>No</option>
@@ -304,7 +304,7 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
               <select
                 value={formData.next_vehicle_timeline}
                 onChange={(e) => setFormData({ ...formData, next_vehicle_timeline: e.target.value })}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition"
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition [&>option]:bg-zinc-900 [&>option]:text-white"
               >
                 <option>0-12 months</option>
                 <option>1-3 years</option>
@@ -321,7 +321,7 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
               <select
                 value={formData.utility_fuels}
                 onChange={(e) => setFormData({ ...formData, utility_fuels: e.target.value })}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition"
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition [&>option]:bg-zinc-900 [&>option]:text-white"
               >
                 <option>No preference</option>
                 <option>Electric only</option>
@@ -338,7 +338,7 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
               <select
                 value={formData.commute_distance}
                 onChange={(e) => setFormData({ ...formData, commute_distance: e.target.value })}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition"
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition [&>option]:bg-zinc-900 [&>option]:text-white"
               >
                 <option>Less than 10 miles</option>
                 <option>10-25 miles</option>
@@ -367,7 +367,7 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
               <select
                 value={formData.household_income}
                 onChange={(e) => setFormData({ ...formData, household_income: e.target.value })}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition"
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition [&>option]:bg-zinc-900 [&>option]:text-white"
               >
                 <option>Prefer not to say</option>
                 <option>Under $50,000</option>
@@ -385,7 +385,7 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
               <select
                 value={formData.household_size}
                 onChange={(e) => setFormData({ ...formData, household_size: e.target.value })}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition"
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition [&>option]:bg-zinc-900 [&>option]:text-white"
               >
                 <option>1-2 people</option>
                 <option>3-4 people</option>
@@ -401,7 +401,7 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
               <select
                 value={formData.own_business}
                 onChange={(e) => setFormData({ ...formData, own_business: e.target.value })}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition"
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition [&>option]:bg-zinc-900 [&>option]:text-white"
               >
                 <option>No</option>
                 <option>Yes</option>
