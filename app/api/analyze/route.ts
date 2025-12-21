@@ -1,3 +1,4 @@
+// app/api/analyze/route.ts
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 
@@ -25,77 +26,26 @@ function asString(v: any, fallback = ""): string {
   return String(v).trim();
 }
 
-function asBoolString(v: any): "Yes" | "No" | "Not sure" {
-  const s = asString(v).toLowerCase();
-  if (s === "yes" || s === "true") return "Yes";
-  if (s === "no" || s === "false") return "No";
-  return "Not sure";
-}
-
-function normalizeResult(obj: any) {
-  // Ensure missing fields don't crash UI
-  const safe = {
-    plain_english_summary: String(obj?.plain_english_summary ?? ""),
-    who_it_applies_to: Array.isArray(obj?.who_it_applies_to)
-      ? obj.who_it_applies_to.map(String)
-      : [],
-    actions_user_can_take: Array.isArray(obj?.actions_user_can_take)
-      ? obj.actions_user_can_take.map(String)
-      : [],
-    impacts: {
-      upfront_costs: Array.isArray(obj?.impacts?.upfront_costs)
-        ? obj.impacts.upfront_costs.map(String)
-        : [],
-      monthly_bills: Array.isArray(obj?.impacts?.monthly_bills)
-        ? obj.impacts.monthly_bills.map(String)
-        : [],
-      rebates_tax_credits: Array.isArray(obj?.impacts?.rebates_tax_credits)
-        ? obj.impacts.rebates_tax_credits.map(String)
-        : [],
-      home_upgrades: Array.isArray(obj?.impacts?.home_upgrades)
-        ? obj.impacts.home_upgrades.map(String)
-        : [],
-      transportation: Array.isArray(obj?.impacts?.transportation)
-        ? obj.impacts.transportation.map(String)
-        : [],
-      jobs_local_economy: Array.isArray(obj?.impacts?.jobs_local_economy)
-        ? obj.impacts.jobs_local_economy.map(String)
-        : [],
-      job_impacts: Array.isArray(obj?.impacts?.job_impacts)
-        ? obj.impacts.job_impacts.map(String)
-        : [],
-    },
-    what_to_check_locally: Array.isArray(obj?.what_to_check_locally)
-      ? obj.what_to_check_locally.map(String)
-      : [],
-    uncertainties: Array.isArray(obj?.uncertainties)
-      ? obj.uncertainties.map(String)
-      : [],
-    questions_to_ask: Array.isArray(obj?.questions_to_ask)
-      ? obj.questions_to_ask.map(String)
-      : [],
-  };
-
-  return safe;
+function asStringArray(v: any): string[] {
+  if (!Array.isArray(v)) return [];
+  return v.map((x) => String(x));
 }
 
 /**
- * Accept both:
- * - legacy keys (zip, housing_status, property_type, etc)
- * - new keys (zipcode, housingStatus, housingType, etc)
+ * Accept both legacy keys and future keys.
  */
 function normalizeInput(body: any) {
   const zip = asString(body.zip ?? body.zipcode ?? body.postal_code ?? "");
   const state = asString(body.state ?? "");
+
   const housing_status = asString(body.housing_status ?? body.housingStatus ?? "");
   const property_type = asString(body.property_type ?? body.housingType ?? "");
 
-  const can_make_upgrades = asString(
-    body.can_make_upgrades ?? body.canMakeUpgrades ?? ""
-  );
+  const can_make_upgrades = asString(body.can_make_upgrades ?? body.canMakeUpgrades ?? "");
 
-  // legacy had utility_fuels; new UI had vehiclePreference etc.
-  const utility_fuels = asString(body.utility_fuels ?? body.utilityFuels ?? body.vehiclePreference ?? "");
+  const utility_fuels = asString(
+    body.utility_fuels ?? body.utilityFuels ?? body.vehiclePreference ?? ""
+  );
 
   const has_car = asString(body.has_car ?? body.hasCar ?? "");
   const next_vehicle_timeline = asString(
@@ -106,6 +56,9 @@ function normalizeInput(body: any) {
   const work_location = asString(body.work_location ?? body.workSetting ?? "");
 
   const policy_text = asString(body.policy_text ?? body.policyText ?? "");
+
+  // NEW (optional)
+  const local_notes = asString(body.local_notes ?? body.localNotes ?? "");
 
   return {
     zip,
@@ -119,7 +72,101 @@ function normalizeInput(body: any) {
     job_sector,
     work_location,
     policy_text,
+    local_notes,
   };
+}
+
+type LocalProfile = {
+  place_name: string;
+  state: string;
+  latitude: string;
+  longitude: string;
+  source: string;
+};
+
+async function fetchWithTimeout(url: string, ms: number) {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), ms);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+// ZIP lookup (no API keys). If it fails, return empty profile.
+async function lookupZip(zip: string): Promise<LocalProfile> {
+  if (!zip) {
+    return { place_name: "", state: "", latitude: "", longitude: "", source: "" };
+  }
+
+  try {
+    const res = await fetchWithTimeout(
+      `https://api.zippopotam.us/us/${encodeURIComponent(zip)}`,
+      2500
+    );
+    if (!res.ok) {
+      return { place_name: "", state: "", latitude: "", longitude: "", source: "" };
+    }
+
+    const data: any = await res.json();
+    const place = Array.isArray(data?.places) ? data.places[0] : null;
+
+    return {
+      place_name: asString(place?.["place name"] ?? ""),
+      state: asString(place?.["state abbreviation"] ?? data?.state ?? ""),
+      latitude: asString(place?.latitude ?? ""),
+      longitude: asString(place?.longitude ?? ""),
+      source: "zippopotam.us",
+    };
+  } catch {
+    return { place_name: "", state: "", latitude: "", longitude: "", source: "" };
+  }
+}
+
+function normalizeResult(obj: any) {
+  const safe = {
+    plain_english_summary: asString(obj?.plain_english_summary ?? ""),
+    economic_summary: asString(obj?.economic_summary ?? ""),
+    local_context_summary: asString(obj?.local_context_summary ?? ""),
+
+    local_profile: {
+      place_name: asString(obj?.local_profile?.place_name ?? ""),
+      state: asString(obj?.local_profile?.state ?? ""),
+      latitude: asString(obj?.local_profile?.latitude ?? ""),
+      longitude: asString(obj?.local_profile?.longitude ?? ""),
+      source: asString(obj?.local_profile?.source ?? ""),
+    },
+
+    who_it_applies_to: asStringArray(obj?.who_it_applies_to),
+    actions_user_can_take: asStringArray(obj?.actions_user_can_take),
+
+    impacts: {
+      upfront_costs: asStringArray(obj?.impacts?.upfront_costs),
+      monthly_bills: asStringArray(obj?.impacts?.monthly_bills),
+      rebates_tax_credits: asStringArray(obj?.impacts?.rebates_tax_credits),
+      home_upgrades: asStringArray(obj?.impacts?.home_upgrades),
+      transportation: asStringArray(obj?.impacts?.transportation),
+      jobs_local_economy: asStringArray(obj?.impacts?.jobs_local_economy),
+      job_impacts: asStringArray(obj?.impacts?.job_impacts),
+    },
+
+    economics_lens: {
+      who_pays_who_benefits: asStringArray(obj?.economics_lens?.who_pays_who_benefits),
+      timeline_and_payback_logic: asStringArray(obj?.economics_lens?.timeline_and_payback_logic),
+      market_and_supply_chain_effects: asStringArray(
+        obj?.economics_lens?.market_and_supply_chain_effects
+      ),
+      equity_distributional_notes: asStringArray(obj?.economics_lens?.equity_distributional_notes),
+    },
+
+    what_to_check_locally: asStringArray(obj?.what_to_check_locally),
+    uncertainties: asStringArray(obj?.uncertainties),
+    questions_to_ask: asStringArray(obj?.questions_to_ask),
+  };
+
+  return safe;
 }
 
 export async function POST(req: Request) {
@@ -142,30 +189,50 @@ export async function POST(req: Request) {
       );
     }
     if (!input.zip || !input.state) {
-      return NextResponse.json(
-        { error: "Missing ZIP or state." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing ZIP or state." }, { status: 400 });
     }
+
+    // Optional enrichment
+    const zipProfile = await lookupZip(input.zip);
 
     const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
 
     const prompt = `
-You are a cautious climate policy impact translator.
-Your job: turn policy excerpts into practical, locally-relevant implications for the user's everyday life.
-Be specific and structured. Do NOT invent dollar amounts, deadlines, eligibility thresholds, or program names that are not explicitly in the excerpt.
+You are a cautious, professional climate policy + economics translator.
+
+Goal:
+Turn the policy excerpt into:
+(1) a plain-English explanation,
+(2) an economics lens (who pays/who benefits, timing/payback logic without numbers, supply constraints, equity),
+(3) locally-relevant guidance.
+
+CRITICAL ACCURACY RULES:
+- Do NOT invent: dollar amounts, deadlines, eligibility thresholds, program names, utility names, or local facts.
+- You MAY use the ZIP lookup fields (city/state/lat/lon) provided below.
+- If you need local specifics (utility territory, program availability, permitting rules, building code, local rebates), phrase as "check X" unless the user provided it in Local Notes.
+- If the excerpt does not specify a detail, explain what would determine it.
 
 User context:
 - ZIP: ${input.zip}
-- State: ${input.state}
+- State (user-entered): ${input.state}
 - Housing status: ${input.housing_status}
 - Property type: ${input.property_type}
 - Can make upgrades: ${input.can_make_upgrades}
-- Utility fuels / vehicle preference: ${input.utility_fuels}
+- Vehicle preference / fuels: ${input.utility_fuels}
 - Has a car: ${input.has_car}
-- Next vehicle / decision timeline: ${input.next_vehicle_timeline}
+- Next decision timeline: ${input.next_vehicle_timeline}
 - Job / role: ${input.job_sector}
 - Work setting: ${input.work_location}
+
+Local profile (ZIP lookup; safe fields only):
+- Place name: ${zipProfile.place_name}
+- State: ${zipProfile.state}
+- Latitude: ${zipProfile.latitude}
+- Longitude: ${zipProfile.longitude}
+- Source: ${zipProfile.source}
+
+Local notes (user-provided; treat as ground truth if specific):
+"""${input.local_notes}"""
 
 Policy excerpt:
 """${input.policy_text}"""
@@ -174,6 +241,15 @@ Return ONLY valid JSON (no markdown, no extra text) with this exact shape:
 
 {
   "plain_english_summary": string,
+  "economic_summary": string,
+  "local_context_summary": string,
+  "local_profile": {
+    "place_name": string,
+    "state": string,
+    "latitude": string,
+    "longitude": string,
+    "source": string
+  },
   "who_it_applies_to": string[],
   "actions_user_can_take": string[],
   "impacts": {
@@ -185,16 +261,22 @@ Return ONLY valid JSON (no markdown, no extra text) with this exact shape:
     "jobs_local_economy": string[],
     "job_impacts": string[]
   },
+  "economics_lens": {
+    "who_pays_who_benefits": string[],
+    "timeline_and_payback_logic": string[],
+    "market_and_supply_chain_effects": string[],
+    "equity_distributional_notes": string[]
+  },
   "what_to_check_locally": string[],
   "uncertainties": string[],
   "questions_to_ask": string[]
 }
 
-Rules:
-- Keep bullets short, scannable, concrete (one idea per bullet).
-- If something depends on eligibility (income, program rules, dates, product standards, landlord approval, utility territory, installer certification), say so explicitly.
-- Avoid generic filler. Focus on what changes for the user.
-- If the excerpt doesn’t specify a detail, say what would determine it.
+STYLE REQUIREMENTS:
+- Professional but understandable for an average person.
+- Bullets: short, scannable, one idea per bullet.
+- "economic_summary": 3–6 sentences; define jargon briefly if used.
+- "local_context_summary": explicitly distinguish what is inferred from ZIP lookup vs what needs verification.
 `.trim();
 
     let response;
@@ -202,6 +284,8 @@ Rules:
       response = await client.chat.completions.create({
         model,
         temperature: 0.2,
+        // Some models support this; if yours doesn't, OpenAI will throw and you'll see details.
+        response_format: { type: "json_object" } as any,
         messages: [
           {
             role: "system",
@@ -212,7 +296,6 @@ Rules:
         ],
       });
     } catch (err: any) {
-      // OpenAI SDK errors can include useful fields
       return NextResponse.json(
         {
           error: "OpenAI request failed",
@@ -245,15 +328,37 @@ Rules:
       );
     }
 
+    // Ensure parsed.local_profile is an object (model could return null/string if it goes off-rails)
+    if (!parsed.local_profile || typeof parsed.local_profile !== "object") {
+      parsed.local_profile = {};
+    }
+
+    // Safely inject ZIP lookup fields (do not override model values if present)
+    parsed.local_profile.place_name = asString(
+      parsed.local_profile.place_name ?? zipProfile.place_name
+    );
+
+    // FIX: parenthesize mixing ?? with ||
+    parsed.local_profile.state = asString(
+      parsed.local_profile.state ?? (zipProfile.state || input.state)
+    );
+
+    parsed.local_profile.latitude = asString(
+      parsed.local_profile.latitude ?? zipProfile.latitude
+    );
+    parsed.local_profile.longitude = asString(
+      parsed.local_profile.longitude ?? zipProfile.longitude
+    );
+    parsed.local_profile.source = asString(
+      parsed.local_profile.source ?? zipProfile.source
+    );
+
     const output = normalizeResult(parsed);
 
     return NextResponse.json({ output }, { status: 200 });
   } catch (err: any) {
     return NextResponse.json(
-      {
-        error: "Server error",
-        details: err?.message || String(err),
-      },
+      { error: "Server error", details: err?.message || String(err) },
       { status: 500 }
     );
   }

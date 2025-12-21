@@ -5,6 +5,19 @@ import { useMemo, useState } from "react";
 
 type OutputShape = {
   plain_english_summary: string;
+
+  // NEW: more professional econ + local framing
+  economic_summary: string; // plain-language economics lens, no fake numbers
+  local_context_summary: string; // local framing using ZIP lookup + user notes
+
+  local_profile: {
+    place_name: string;
+    state: string;
+    latitude: string;
+    longitude: string;
+    source: string; // e.g. "zippopotam.us" or ""
+  };
+
   who_it_applies_to: string[];
   actions_user_can_take: string[];
   impacts: {
@@ -16,6 +29,15 @@ type OutputShape = {
     jobs_local_economy: string[];
     job_impacts: string[];
   };
+
+  // NEW: a dedicated economics lens section with bullet structure
+  economics_lens: {
+    who_pays_who_benefits: string[];
+    timeline_and_payback_logic: string[];
+    market_and_supply_chain_effects: string[];
+    equity_distributional_notes: string[];
+  };
+
   what_to_check_locally: string[];
   uncertainties: string[];
   questions_to_ask: string[];
@@ -99,17 +121,19 @@ function TextArea({
   value,
   onChange,
   placeholder,
+  rows = 8,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  rows?: number;
 }) {
   return (
     <textarea
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      rows={8}
+      rows={rows}
       className="w-full rounded-2xl bg-white/[0.06] border border-white/10 px-4 py-3 text-white placeholder:text-white/30 outline-none focus:ring-2 focus:ring-sky-300/25 focus:border-sky-300/35 transition resize-y"
     />
   );
@@ -164,9 +188,7 @@ function SectionCard({
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
       <div className="flex items-center gap-2 mb-3">
-        {icon ? (
-          <span className="text-white/70 text-sm">{icon}</span>
-        ) : null}
+        {icon ? <span className="text-white/70 text-sm">{icon}</span> : null}
         <div className="text-sm font-semibold text-white/90">{title}</div>
       </div>
       {children}
@@ -189,7 +211,7 @@ function BulletList({ items }: { items: string[] }) {
 }
 
 export default function Page() {
-  // Inputs (aligned with backend legacy keys)
+  // Inputs
   const [zip, setZip] = useState("06511");
   const [state, setState] = useState("CT");
 
@@ -204,6 +226,11 @@ export default function Page() {
 
   const [next_vehicle_timeline, setNextVehicleTimeline] = useState("1–3 years");
   const [utility_fuels, setUtilityFuels] = useState("Electric only");
+
+  // NEW: local notes for truly-local facts (utility name, program links, landlord rules, etc.)
+  const [local_notes, setLocalNotes] = useState(
+    "Local notes (optional): e.g., your utility name, whether your building already has heat pumps, landlord restrictions, local rebate program link, whether you have off-street parking for EV charging, etc."
+  );
 
   const [policy_text, setPolicyText] = useState(
     "Clean Energy Tax Credits: Extends and expands credits like the Production Tax Credit (PTC) and Investment Tax Credit (ITC) for solar, wind, storage, geothermal, and nuclear, with bonus credits for domestic content and low-income areas.\nHousehold Incentives: Offers rebates and tax credits for electric vehicles (EVs), heat pumps, and home energy efficiency upgrades.\nClean Energy Manufacturing: Incentivizes domestic production of clean energy components, boosting American supply chains."
@@ -226,6 +253,7 @@ export default function Page() {
       job_sector,
       work_location,
       policy_text,
+      local_notes, // NEW
     }),
     [
       zip,
@@ -239,6 +267,7 @@ export default function Page() {
       job_sector,
       work_location,
       policy_text,
+      local_notes,
     ]
   );
 
@@ -279,21 +308,20 @@ export default function Page() {
 
   return (
     <main className="min-h-screen text-white relative overflow-hidden">
-      {/* Background: more color, still neutral + professional */}
+      {/* Background (unchanged) */}
       <div className="absolute inset-0 bg-gradient-to-b from-zinc-950 via-zinc-950 to-zinc-900" />
       <div className="absolute inset-0 bg-[radial-gradient(900px_550px_at_18%_12%,rgba(56,189,248,0.20),transparent_62%),radial-gradient(850px_520px_at_82%_18%,rgba(99,102,241,0.16),transparent_60%),radial-gradient(850px_520px_at_55%_92%,rgba(16,185,129,0.12),transparent_62%)]" />
       <div className="absolute inset-0 opacity-[0.16] [background-image:linear-gradient(to_right,rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.06)_1px,transparent_1px)] bg-[size:44px_44px]" />
 
       <div className="relative mx-auto max-w-6xl px-6 py-14">
-        {/* Header (user-focused) */}
         <header className="mb-10">
           <h1 className="text-4xl md:text-5xl font-semibold tracking-tight">
             Local Climate Policy Impact
           </h1>
           <p className="mt-3 text-white/65 max-w-2xl leading-relaxed">
             Share a bit about your situation and paste a short excerpt from a
-            climate policy. We’ll summarize what it may mean for you, and list
-            practical next steps to explore locally.
+            climate policy. We’ll summarize what it may mean for you, add an
+            economics lens, and list practical next steps to explore locally.
           </p>
 
           <div className="mt-6 flex flex-wrap gap-2">
@@ -303,7 +331,7 @@ export default function Page() {
             </span>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-xs text-white/70">
               <span className="h-2 w-2 rounded-full bg-indigo-300/70" />
-              Focused on actionable steps
+              Economics lens
             </span>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-xs text-white/70">
               <span className="h-2 w-2 rounded-full bg-emerald-300/70" />
@@ -312,17 +340,16 @@ export default function Page() {
           </div>
         </header>
 
-        {/* Input Card */}
         <GlassCard
           title="Your situation & policy excerpt"
-          subtitle="Answer a few quick questions so the summary can be tailored to you."
+          subtitle="Add local notes if you want truly ZIP-specific accuracy (e.g., your utility, landlord rules, or local program links)."
           icon="🧾"
         >
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
               <FieldLabel
                 question="What ZIP code are you in?"
-                helper="Helps tailor recommendations to your area."
+                helper="Used to infer city/area for context."
                 badge="Location"
               />
               <TextInput value={zip} onChange={setZip} />
@@ -457,6 +484,21 @@ export default function Page() {
               />
             </div>
 
+            {/* NEW local notes box */}
+            <div className="md:col-span-3">
+              <FieldLabel
+                question="Local notes (optional but improves ZIP-specific accuracy)"
+                helper="Paste anything you know is true locally: your utility name, a rebate link, landlord policy, building constraints, transit reality, etc."
+                badge="Local"
+              />
+              <TextArea
+                value={local_notes}
+                onChange={setLocalNotes}
+                rows={5}
+                placeholder="Optional local notes…"
+              />
+            </div>
+
             <div className="md:col-span-3">
               <FieldLabel
                 question="Paste the policy text you want analyzed"
@@ -480,13 +522,11 @@ export default function Page() {
                 transition"
               >
                 <span className="mr-2">{loading ? "Analyzing…" : "Analyze"}</span>
-                <span className="opacity-70 group-hover:opacity-90 transition">
-                  →
-                </span>
+                <span className="opacity-70 group-hover:opacity-90 transition">→</span>
               </button>
 
               <div className="text-xs text-white/55">
-                You’ll get a structured summary plus next steps to explore.
+                You’ll get a structured summary + economics lens + local checks.
               </div>
 
               {error ? (
@@ -504,6 +544,38 @@ export default function Page() {
             <SectionCard title="Plain-English summary" icon="🧠">
               <p className="text-white/80 leading-relaxed">
                 {result.plain_english_summary || "—"}
+              </p>
+            </SectionCard>
+
+            {/* NEW: Economic summary */}
+            <SectionCard title="Economics lens (plain language)" icon="📈">
+              <p className="text-white/80 leading-relaxed">
+                {result.economic_summary || "—"}
+              </p>
+            </SectionCard>
+
+            {/* NEW: Local context summary + inferred place */}
+            <SectionCard title="Local context" icon="📍">
+              <div className="text-xs text-white/55 mb-3">
+                {result.local_profile?.place_name ? (
+                  <>
+                    Inferred area:{" "}
+                    <span className="text-white/80">
+                      {result.local_profile.place_name}, {result.local_profile.state}
+                    </span>
+                    {result.local_profile.source ? (
+                      <span className="text-white/40">
+                        {" "}
+                        • source: {result.local_profile.source}
+                      </span>
+                    ) : null}
+                  </>
+                ) : (
+                  <>Inferred area: —</>
+                )}
+              </div>
+              <p className="text-white/80 leading-relaxed">
+                {result.local_context_summary || "—"}
               </p>
             </SectionCard>
 
@@ -542,6 +614,45 @@ export default function Page() {
 
               <SectionCard title="Job impacts" icon="🧰">
                 <BulletList items={result.impacts?.job_impacts ?? []} />
+              </SectionCard>
+
+              {/* NEW: Economics lens bullets */}
+              <SectionCard title="Economics lens (details)" icon="🧮">
+                <div className="space-y-5">
+                  <div>
+                    <div className="text-xs font-semibold text-white/75 mb-2">
+                      Who pays / who benefits
+                    </div>
+                    <BulletList items={result.economics_lens?.who_pays_who_benefits ?? []} />
+                  </div>
+
+                  <div>
+                    <div className="text-xs font-semibold text-white/75 mb-2">
+                      Timeline & payback logic
+                    </div>
+                    <BulletList
+                      items={result.economics_lens?.timeline_and_payback_logic ?? []}
+                    />
+                  </div>
+
+                  <div>
+                    <div className="text-xs font-semibold text-white/75 mb-2">
+                      Market & supply chain effects
+                    </div>
+                    <BulletList
+                      items={result.economics_lens?.market_and_supply_chain_effects ?? []}
+                    />
+                  </div>
+
+                  <div>
+                    <div className="text-xs font-semibold text-white/75 mb-2">
+                      Equity / distribution notes
+                    </div>
+                    <BulletList
+                      items={result.economics_lens?.equity_distributional_notes ?? []}
+                    />
+                  </div>
+                </div>
               </SectionCard>
 
               <SectionCard title="What to check locally" icon="📍">
