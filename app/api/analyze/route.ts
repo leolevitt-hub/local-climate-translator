@@ -31,9 +31,10 @@ function asStringArray(v: any): string[] {
   return v.map((x) => String(x));
 }
 
-/**
- * Accept both legacy keys and future keys.
- */
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+
 function normalizeInput(body: any) {
   const zip = asString(body.zip ?? body.zipcode ?? body.postal_code ?? "");
   const state = asString(body.state ?? "");
@@ -57,9 +58,6 @@ function normalizeInput(body: any) {
 
   const policy_text = asString(body.policy_text ?? body.policyText ?? "");
 
-  // NEW (optional)
-  const local_notes = asString(body.local_notes ?? body.localNotes ?? "");
-
   return {
     zip,
     state,
@@ -72,75 +70,128 @@ function normalizeInput(body: any) {
     job_sector,
     work_location,
     policy_text,
-    local_notes,
   };
 }
 
-type LocalProfile = {
-  place_name: string;
-  state: string;
-  latitude: string;
-  longitude: string;
-  source: string;
-};
+/**
+ * Deterministic relevance scoring:
+ * - Combine user context + simple keyword detection in the excerpt.
+ * - No GPT.
+ */
+function computeRelevance(input: ReturnType<typeof normalizeInput>) {
+  const t = (input.policy_text || "").toLowerCase();
 
-async function fetchWithTimeout(url: string, ms: number) {
-  const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), ms);
-  try {
-    const res = await fetch(url, { signal: controller.signal });
-    return res;
-  } finally {
-    clearTimeout(t);
+  const hits = (keywords: string[]) =>
+    keywords.some((k) => t.includes(k.toLowerCase()));
+
+  const reasons: string[] = [];
+  let score = 0;
+
+  // Policy text signals (largest effect)
+  if (hits(["rebate", "rebates", "tax credit", "tax credits", "incentive", "incentives"])) {
+    score += 3.0;
+    reasons.push("The excerpt includes consumer-facing incentives (rebates / tax credits), which can change real purchasing decisions.");
   }
+
+  if (hits(["electric vehicle", "ev ", "evs", "charging", "plug-in"])) {
+    score += 1.5;
+    reasons.push("The excerpt touches transportation (EVs/charging), which matters if you own or plan to buy a car.");
+  }
+
+  if (hits(["heat pump", "insulation", "weatherization", "efficiency", "energy efficiency", "home energy"])) {
+    score += 1.5;
+    reasons.push("The excerpt addresses home energy upgrades (efficiency/heat pumps), which can affect bills and comfort.");
+  }
+
+  if (hits(["manufacturing", "domestic content", "supply chain", "factory", "production"])) {
+    score += 1.0;
+    reasons.push("The excerpt includes industrial/manufacturing provisions, which can affect local jobs and availability of equipment.");
+  }
+
+  if (hits(["low-income", "disadvantaged", "equity", "community", "environmental justice"])) {
+    score += 0.8;
+    reasons.push("The excerpt references targeting rules (e.g., low-income/disadvantaged), which can change eligibility and access.");
+  }
+
+  // User context signals (moderate effect)
+  const hs = input.housing_status.toLowerCase();
+  if (hs.includes("owner")) {
+    score += 1.0;
+    reasons.push("Homeowners can directly act on home upgrade/solar provisions without landlord approval.");
+  } else if (hs.includes("renter")) {
+    score += 0.4;
+    reasons.push("Renters may still benefit, but landlord approval and building constraints can limit what you can do.");
+  }
+
+  const upgrades = input.can_make_upgrades.toLowerCase();
+  if (upgrades.includes("yes")) {
+    score += 0.8;
+    reasons.push("You indicated you can make upgrades, increasing the chance the policy affects you directly.");
+  } else if (upgrades.includes("no")) {
+    score -= 0.4;
+    reasons.push("You indicated you can’t make upgrades right now, which may reduce immediate relevance.");
+  }
+
+  const car = input.has_car.toLowerCase();
+  if (car.includes("yes") && hits(["electric vehicle", "ev ", "charging"])) {
+    score += 0.8;
+    reasons.push("You have a car and the policy mentions EV-related items, increasing relevance.");
+  }
+
+  // Time horizon: near-term decisions -> more relevant
+  const horizon = input.next_vehicle_timeline.toLowerCase();
+  if (horizon.includes("0–12") || horizon.includes("0-12")) {
+    score += 1.0;
+    reasons.push("Your timeline is near-term, so incentives/eligibility changes may matter sooner.");
+  } else if (horizon.includes("1–3") || horizon.includes("1-3")) {
+    score += 0.6;
+    reasons.push("Your decision timeline is within a few years, so it’s worth tracking program details.");
+  } else if (horizon.includes("10+")) {
+    score -= 0.3;
+    reasons.push("Your timeline is far out, so today’s program details may change before you act.");
+  }
+
+  // Property type nuance (small)
+  const pt = input.property_type.toLowerCase();
+  if (pt.includes("apartment")) {
+    score -= 0.2;
+    reasons.push("Apartment living often limits upgrades like rooftop solar or panel upgrades, lowering direct impact.");
+  }
+
+  score = clamp(score, 0, 10);
+
+  let tier: "LOW" | "MEDIUM" | "HIGH" = "LOW";
+  if (score >= 7.0) tier = "HIGH";
+  else if (score >= 4.0) tier = "MEDIUM";
+
+  const whatItMeans =
+    tier === "HIGH"
+      ? "This policy is likely to change a real decision you could make (costs, eligibility, or timing)."
+      : tier === "MEDIUM"
+      ? "This policy may matter depending on eligibility and local program details—worth a quick check if you're making a decision soon."
+      : "This policy is unlikely to change your decisions right now, but could be worth revisiting if your situation changes.";
+
+  return {
+    score_0_to_10: score,
+    tier,
+    reasons: reasons.slice(0, 6), // keep it scannable
+    what_it_means: whatItMeans,
+  };
 }
 
-// ZIP lookup (no API keys). If it fails, return empty profile.
-async function lookupZip(zip: string): Promise<LocalProfile> {
-  if (!zip) {
-    return { place_name: "", state: "", latitude: "", longitude: "", source: "" };
-  }
+function normalizeResult(obj: any, relevance: ReturnType<typeof computeRelevance>) {
+  return {
+    relevance,
 
-  try {
-    const res = await fetchWithTimeout(
-      `https://api.zippopotam.us/us/${encodeURIComponent(zip)}`,
-      2500
-    );
-    if (!res.ok) {
-      return { place_name: "", state: "", latitude: "", longitude: "", source: "" };
-    }
-
-    const data: any = await res.json();
-    const place = Array.isArray(data?.places) ? data.places[0] : null;
-
-    return {
-      place_name: asString(place?.["place name"] ?? ""),
-      state: asString(place?.["state abbreviation"] ?? data?.state ?? ""),
-      latitude: asString(place?.latitude ?? ""),
-      longitude: asString(place?.longitude ?? ""),
-      source: "zippopotam.us",
-    };
-  } catch {
-    return { place_name: "", state: "", latitude: "", longitude: "", source: "" };
-  }
-}
-
-function normalizeResult(obj: any) {
-  const safe = {
     plain_english_summary: asString(obj?.plain_english_summary ?? ""),
-    economic_summary: asString(obj?.economic_summary ?? ""),
-    local_context_summary: asString(obj?.local_context_summary ?? ""),
 
-    local_profile: {
-      place_name: asString(obj?.local_profile?.place_name ?? ""),
-      state: asString(obj?.local_profile?.state ?? ""),
-      latitude: asString(obj?.local_profile?.latitude ?? ""),
-      longitude: asString(obj?.local_profile?.longitude ?? ""),
-      source: asString(obj?.local_profile?.source ?? ""),
+    actions: {
+      do_now: asStringArray(obj?.actions?.do_now),
+      do_later: asStringArray(obj?.actions?.do_later),
+      ignore_for_now: asStringArray(obj?.actions?.ignore_for_now),
     },
 
     who_it_applies_to: asStringArray(obj?.who_it_applies_to),
-    actions_user_can_take: asStringArray(obj?.actions_user_can_take),
 
     impacts: {
       upfront_costs: asStringArray(obj?.impacts?.upfront_costs),
@@ -152,21 +203,10 @@ function normalizeResult(obj: any) {
       job_impacts: asStringArray(obj?.impacts?.job_impacts),
     },
 
-    economics_lens: {
-      who_pays_who_benefits: asStringArray(obj?.economics_lens?.who_pays_who_benefits),
-      timeline_and_payback_logic: asStringArray(obj?.economics_lens?.timeline_and_payback_logic),
-      market_and_supply_chain_effects: asStringArray(
-        obj?.economics_lens?.market_and_supply_chain_effects
-      ),
-      equity_distributional_notes: asStringArray(obj?.economics_lens?.equity_distributional_notes),
-    },
-
     what_to_check_locally: asStringArray(obj?.what_to_check_locally),
     uncertainties: asStringArray(obj?.uncertainties),
     questions_to_ask: asStringArray(obj?.questions_to_ask),
   };
-
-  return safe;
 }
 
 export async function POST(req: Request) {
@@ -181,7 +221,6 @@ export async function POST(req: Request) {
     const body = await req.json();
     const input = normalizeInput(body);
 
-    // Minimal validation
     if (!input.policy_text) {
       return NextResponse.json(
         { error: "Missing policy text. Paste 1–3 paragraphs into the policy box." },
@@ -192,66 +231,60 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing ZIP or state." }, { status: 400 });
     }
 
-    // Optional enrichment
-    const zipProfile = await lookupZip(input.zip);
+    // (3) Deterministic relevance score (non-AI)
+    const relevance = computeRelevance(input);
 
     const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
 
     const prompt = `
-You are a cautious, professional climate policy + economics translator.
+You are a practical climate policy translator for ordinary people.
 
-Goal:
-Turn the policy excerpt into:
-(1) a plain-English explanation,
-(2) an economics lens (who pays/who benefits, timing/payback logic without numbers, supply constraints, equity),
-(3) locally-relevant guidance.
+You will be given:
+- user context
+- a policy excerpt
+- a deterministic relevance score + reasons (computed outside the model)
 
-CRITICAL ACCURACY RULES:
-- Do NOT invent: dollar amounts, deadlines, eligibility thresholds, program names, utility names, or local facts.
-- You MAY use the ZIP lookup fields (city/state/lat/lon) provided below.
-- If you need local specifics (utility territory, program availability, permitting rules, building code, local rebates), phrase as "check X" unless the user provided it in Local Notes.
-- If the excerpt does not specify a detail, explain what would determine it.
+Your job:
+1) Provide a plain-English summary (short, concrete).
+2) Provide prioritized actions in EXACTLY these buckets:
+   - do_now (max 3 bullets)
+   - do_later (max 3 bullets)
+   - ignore_for_now (max 3 bullets)
+   These should reflect the user's situation. If relevance is LOW, "ignore_for_now" should be populated.
+3) Keep it professional and understandable.
+4) Do NOT invent dollar amounts, deadlines, eligibility thresholds, or program names not in the excerpt.
 
 User context:
 - ZIP: ${input.zip}
-- State (user-entered): ${input.state}
-- Housing status: ${input.housing_status}
-- Property type: ${input.property_type}
+- State: ${input.state}
+- Housing: ${input.housing_status}
+- Home type: ${input.property_type}
 - Can make upgrades: ${input.can_make_upgrades}
-- Vehicle preference / fuels: ${input.utility_fuels}
 - Has a car: ${input.has_car}
-- Next decision timeline: ${input.next_vehicle_timeline}
-- Job / role: ${input.job_sector}
+- Vehicle preference: ${input.utility_fuels}
+- Decision timeline: ${input.next_vehicle_timeline}
+- Job/role: ${input.job_sector}
 - Work setting: ${input.work_location}
 
-Local profile (ZIP lookup; safe fields only):
-- Place name: ${zipProfile.place_name}
-- State: ${zipProfile.state}
-- Latitude: ${zipProfile.latitude}
-- Longitude: ${zipProfile.longitude}
-- Source: ${zipProfile.source}
-
-Local notes (user-provided; treat as ground truth if specific):
-"""${input.local_notes}"""
+Deterministic relevance score (ground truth):
+- Score (0–10): ${relevance.score_0_to_10.toFixed(1)}
+- Tier: ${relevance.tier}
+- Reasons:
+${relevance.reasons.map((r) => `- ${r}`).join("\n")}
 
 Policy excerpt:
 """${input.policy_text}"""
 
-Return ONLY valid JSON (no markdown, no extra text) with this exact shape:
+Return ONLY valid JSON with this exact shape (no markdown, no extra keys):
 
 {
   "plain_english_summary": string,
-  "economic_summary": string,
-  "local_context_summary": string,
-  "local_profile": {
-    "place_name": string,
-    "state": string,
-    "latitude": string,
-    "longitude": string,
-    "source": string
+  "actions": {
+    "do_now": string[],
+    "do_later": string[],
+    "ignore_for_now": string[]
   },
   "who_it_applies_to": string[],
-  "actions_user_can_take": string[],
   "impacts": {
     "upfront_costs": string[],
     "monthly_bills": string[],
@@ -261,22 +294,15 @@ Return ONLY valid JSON (no markdown, no extra text) with this exact shape:
     "jobs_local_economy": string[],
     "job_impacts": string[]
   },
-  "economics_lens": {
-    "who_pays_who_benefits": string[],
-    "timeline_and_payback_logic": string[],
-    "market_and_supply_chain_effects": string[],
-    "equity_distributional_notes": string[]
-  },
   "what_to_check_locally": string[],
   "uncertainties": string[],
   "questions_to_ask": string[]
 }
 
-STYLE REQUIREMENTS:
-- Professional but understandable for an average person.
-- Bullets: short, scannable, one idea per bullet.
-- "economic_summary": 3–6 sentences; define jargon briefly if used.
-- "local_context_summary": explicitly distinguish what is inferred from ZIP lookup vs what needs verification.
+Bullet rules:
+- One idea per bullet. No fluff.
+- If something depends on eligibility, dates, product standards, landlord approval, utility territory, permitting, or installer availability: say so.
+- Keep "do_now" genuinely immediate and low-friction when possible.
 `.trim();
 
     let response;
@@ -284,13 +310,12 @@ STYLE REQUIREMENTS:
       response = await client.chat.completions.create({
         model,
         temperature: 0.2,
-        // Some models support this; if yours doesn't, OpenAI will throw and you'll see details.
         response_format: { type: "json_object" } as any,
         messages: [
           {
             role: "system",
             content:
-              "You are careful, structured, and you follow the output schema exactly. Output must be valid JSON only.",
+              "Follow the schema exactly. Output must be valid JSON only. Do not invent specifics not in the excerpt.",
           },
           { role: "user", content: prompt },
         ],
@@ -328,32 +353,7 @@ STYLE REQUIREMENTS:
       );
     }
 
-    // Ensure parsed.local_profile is an object (model could return null/string if it goes off-rails)
-    if (!parsed.local_profile || typeof parsed.local_profile !== "object") {
-      parsed.local_profile = {};
-    }
-
-    // Safely inject ZIP lookup fields (do not override model values if present)
-    parsed.local_profile.place_name = asString(
-      parsed.local_profile.place_name ?? zipProfile.place_name
-    );
-
-    // FIX: parenthesize mixing ?? with ||
-    parsed.local_profile.state = asString(
-      parsed.local_profile.state ?? (zipProfile.state || input.state)
-    );
-
-    parsed.local_profile.latitude = asString(
-      parsed.local_profile.latitude ?? zipProfile.latitude
-    );
-    parsed.local_profile.longitude = asString(
-      parsed.local_profile.longitude ?? zipProfile.longitude
-    );
-    parsed.local_profile.source = asString(
-      parsed.local_profile.source ?? zipProfile.source
-    );
-
-    const output = normalizeResult(parsed);
+    const output = normalizeResult(parsed, relevance);
 
     return NextResponse.json({ output }, { status: 200 });
   } catch (err: any) {

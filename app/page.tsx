@@ -1,25 +1,28 @@
 // app/page.tsx
 "use client";
 
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
+
+type RelevanceTier = "LOW" | "MEDIUM" | "HIGH";
 
 type OutputShape = {
+  relevance: {
+    score_0_to_10: number;
+    tier: RelevanceTier;
+    reasons: string[];
+    what_it_means: string;
+  };
+
   plain_english_summary: string;
 
-  // NEW: more professional econ + local framing
-  economic_summary: string; // plain-language economics lens, no fake numbers
-  local_context_summary: string; // local framing using ZIP lookup + user notes
-
-  local_profile: {
-    place_name: string;
-    state: string;
-    latitude: string;
-    longitude: string;
-    source: string; // e.g. "zippopotam.us" or ""
+  actions: {
+    do_now: string[];
+    do_later: string[];
+    ignore_for_now: string[];
   };
 
   who_it_applies_to: string[];
-  actions_user_can_take: string[];
+
   impacts: {
     upfront_costs: string[];
     monthly_bills: string[];
@@ -28,14 +31,6 @@ type OutputShape = {
     transportation: string[];
     jobs_local_economy: string[];
     job_impacts: string[];
-  };
-
-  // NEW: a dedicated economics lens section with bullet structure
-  economics_lens: {
-    who_pays_who_benefits: string[];
-    timeline_and_payback_logic: string[];
-    market_and_supply_chain_effects: string[];
-    equity_distributional_notes: string[];
   };
 
   what_to_check_locally: string[];
@@ -83,7 +78,7 @@ function Select({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full appearance-none rounded-xl bg-white/[0.06] border border-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-sky-300/25 focus:border-sky-300/35 transition"
+        className="w-full appearance-none rounded-xl bg-white/[0.06] border border-white/10 px-3 py-2 text-white outline-none focus:ring-2 focus:ring-emerald-300/25 focus:border-emerald-300/35 transition"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value} className="bg-zinc-950">
@@ -112,7 +107,7 @@ function TextInput({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      className="w-full rounded-xl bg-white/[0.06] border border-white/10 px-3 py-2 text-white placeholder:text-white/30 outline-none focus:ring-2 focus:ring-sky-300/25 focus:border-sky-300/35 transition"
+      className="w-full rounded-xl bg-white/[0.06] border border-white/10 px-3 py-2 text-white placeholder:text-white/30 outline-none focus:ring-2 focus:ring-emerald-300/25 focus:border-emerald-300/35 transition"
     />
   );
 }
@@ -134,7 +129,7 @@ function TextArea({
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       rows={rows}
-      className="w-full rounded-2xl bg-white/[0.06] border border-white/10 px-4 py-3 text-white placeholder:text-white/30 outline-none focus:ring-2 focus:ring-sky-300/25 focus:border-sky-300/35 transition resize-y"
+      className="w-full rounded-2xl bg-white/[0.06] border border-white/10 px-4 py-3 text-white placeholder:text-white/30 outline-none focus:ring-2 focus:ring-emerald-300/25 focus:border-emerald-300/35 transition resize-y"
     />
   );
 }
@@ -151,8 +146,8 @@ function GlassCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/[0.045] shadow-[0_22px_80px_rgba(0,0,0,0.45)] overflow-hidden">
-      <div className="px-5 py-4 border-b border-white/10 bg-gradient-to-r from-white/[0.07] via-white/[0.03] to-transparent">
+    <div className="rounded-3xl border border-white/10 bg-white/[0.045] shadow-[0_22px_90px_rgba(0,0,0,0.52)] overflow-hidden">
+      <div className="px-5 py-4 border-b border-white/10 bg-gradient-to-r from-emerald-500/10 via-white/[0.03] to-transparent">
         <div className="flex items-start gap-3">
           {icon ? (
             <div className="h-9 w-9 rounded-2xl border border-white/10 bg-white/[0.06] flex items-center justify-center text-white/80 text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
@@ -202,12 +197,39 @@ function BulletList({ items }: { items: string[] }) {
     <ul className="space-y-2">
       {items.map((x, i) => (
         <li key={i} className="flex gap-3">
-          <span className="mt-2 h-1.5 w-1.5 rounded-full bg-sky-200/80 shrink-0" />
+          <span className="mt-2 h-1.5 w-1.5 rounded-full bg-emerald-200/80 shrink-0" />
           <span className="text-white/80 leading-relaxed">{x}</span>
         </li>
       ))}
     </ul>
   );
+}
+
+function tierStyles(tier: RelevanceTier) {
+  switch (tier) {
+    case "HIGH":
+      return {
+        pill: "bg-emerald-300/90 text-zinc-950",
+        glow: "shadow-[0_0_0_1px_rgba(16,185,129,0.35),0_18px_70px_rgba(16,185,129,0.18)]",
+        label: "High relevance",
+      };
+    case "MEDIUM":
+      return {
+        pill: "bg-lime-300/85 text-zinc-950",
+        glow: "shadow-[0_0_0_1px_rgba(163,230,53,0.30),0_18px_70px_rgba(163,230,53,0.14)]",
+        label: "Medium relevance",
+      };
+    default:
+      return {
+        pill: "bg-white/10 text-white/85 border border-white/10",
+        glow: "shadow-[0_0_0_1px_rgba(255,255,255,0.08)]",
+        label: "Low relevance",
+      };
+  }
+}
+
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
 }
 
 export default function Page() {
@@ -218,19 +240,14 @@ export default function Page() {
   const [housing_status, setHousingStatus] = useState("Renter");
   const [property_type, setPropertyType] = useState("Apartment");
 
-  const [job_sector, setJobSector] = useState("Healthcare");
+  const [job_sector, setJobSector] = useState("Student");
   const [work_location, setWorkLocation] = useState("In-person");
 
-  const [can_make_upgrades, setCanMakeUpgrades] = useState("Yes");
+  const [can_make_upgrades, setCanMakeUpgrades] = useState("Not sure");
   const [has_car, setHasCar] = useState("Yes");
 
   const [next_vehicle_timeline, setNextVehicleTimeline] = useState("1–3 years");
-  const [utility_fuels, setUtilityFuels] = useState("Electric only");
-
-  // NEW: local notes for truly-local facts (utility name, program links, landlord rules, etc.)
-  const [local_notes, setLocalNotes] = useState(
-    "Local notes (optional): e.g., your utility name, whether your building already has heat pumps, landlord restrictions, local rebate program link, whether you have off-street parking for EV charging, etc."
-  );
+  const [utility_fuels, setUtilityFuels] = useState("No preference");
 
   const [policy_text, setPolicyText] = useState(
     "Clean Energy Tax Credits: Extends and expands credits like the Production Tax Credit (PTC) and Investment Tax Credit (ITC) for solar, wind, storage, geothermal, and nuclear, with bonus credits for domestic content and low-income areas.\nHousehold Incentives: Offers rebates and tax credits for electric vehicles (EVs), heat pumps, and home energy efficiency upgrades.\nClean Energy Manufacturing: Incentivizes domestic production of clean energy components, boosting American supply chains."
@@ -253,7 +270,6 @@ export default function Page() {
       job_sector,
       work_location,
       policy_text,
-      local_notes, // NEW
     }),
     [
       zip,
@@ -267,7 +283,6 @@ export default function Page() {
       job_sector,
       work_location,
       policy_text,
-      local_notes,
     ]
   );
 
@@ -306,66 +321,69 @@ export default function Page() {
     }
   }
 
+  const score = result?.relevance?.score_0_to_10 ?? 0;
+  const tier: RelevanceTier = result?.relevance?.tier ?? "LOW";
+  const meterPct = clamp((score / 10) * 100, 0, 100);
+  const styles = tierStyles(tier);
+
   return (
     <main className="min-h-screen text-white relative overflow-hidden">
-      {/* Background (unchanged) */}
+      {/* Background: darker, more unique green/teal glow */}
       <div className="absolute inset-0 bg-gradient-to-b from-zinc-950 via-zinc-950 to-zinc-900" />
-      <div className="absolute inset-0 bg-[radial-gradient(900px_550px_at_18%_12%,rgba(56,189,248,0.20),transparent_62%),radial-gradient(850px_520px_at_82%_18%,rgba(99,102,241,0.16),transparent_60%),radial-gradient(850px_520px_at_55%_92%,rgba(16,185,129,0.12),transparent_62%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(900px_550px_at_15%_10%,rgba(16,185,129,0.22),transparent_62%),radial-gradient(900px_520px_at_85%_18%,rgba(56,189,248,0.16),transparent_60%),radial-gradient(850px_520px_at_55%_92%,rgba(34,197,94,0.12),transparent_62%)]" />
       <div className="absolute inset-0 opacity-[0.16] [background-image:linear-gradient(to_right,rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.06)_1px,transparent_1px)] bg-[size:44px_44px]" />
 
       <div className="relative mx-auto max-w-6xl px-6 py-14">
         <header className="mb-10">
-          <h1 className="text-4xl md:text-5xl font-semibold tracking-tight">
-            Local Climate Policy Impact
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-xs text-white/70">
+            <span className="h-2 w-2 rounded-full bg-emerald-300/80" />
+            Practical climate policy translator
+          </div>
+
+          <h1 className="mt-4 text-4xl md:text-5xl font-semibold tracking-tight">
+            Should you care about this climate policy?
           </h1>
           <p className="mt-3 text-white/65 max-w-2xl leading-relaxed">
-            Share a bit about your situation and paste a short excerpt from a
-            climate policy. We’ll summarize what it may mean for you, add an
-            economics lens, and list practical next steps to explore locally.
+            Paste a policy excerpt and answer a few questions. You’ll get a{" "}
+            <span className="text-white/85">relevance score</span> and a
+            prioritized{" "}
+            <span className="text-white/85">Do / Do later / Ignore</span> plan.
           </p>
 
           <div className="mt-6 flex flex-wrap gap-2">
             <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-xs text-white/70">
-              <span className="h-2 w-2 rounded-full bg-sky-300/80" />
-              Designed for clarity
+              <span className="h-2 w-2 rounded-full bg-emerald-300/80" />
+              Deterministic relevance score
             </span>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-xs text-white/70">
-              <span className="h-2 w-2 rounded-full bg-indigo-300/70" />
-              Economics lens
+              <span className="h-2 w-2 rounded-full bg-sky-300/70" />
+              Clear action priorities
             </span>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-xs text-white/70">
-              <span className="h-2 w-2 rounded-full bg-emerald-300/70" />
-              Local context
+              <span className="h-2 w-2 rounded-full bg-lime-300/70" />
+              Honest about uncertainty
             </span>
           </div>
         </header>
 
         <GlassCard
           title="Your situation & policy excerpt"
-          subtitle="Add local notes if you want truly ZIP-specific accuracy (e.g., your utility, landlord rules, or local program links)."
+          subtitle="Short, concrete excerpts work best (1–3 paragraphs)."
           icon="🧾"
         >
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
-              <FieldLabel
-                question="What ZIP code are you in?"
-                helper="Used to infer city/area for context."
-                badge="Location"
-              />
+              <FieldLabel question="ZIP code" helper="Used for basic locality context." badge="Location" />
               <TextInput value={zip} onChange={setZip} />
             </div>
 
             <div>
-              <FieldLabel
-                question="What state are you in?"
-                helper="Two-letter abbreviation is fine (e.g., CT)."
-                badge="Location"
-              />
+              <FieldLabel question="State" helper="Two-letter abbreviation is fine (e.g., CT)." badge="Location" />
               <TextInput value={state} onChange={setState} />
             </div>
 
             <div>
-              <FieldLabel question="Do you rent or own your home?" badge="Housing" />
+              <FieldLabel question="Rent or own?" badge="Housing" />
               <Select
                 value={housing_status}
                 onChange={setHousingStatus}
@@ -377,35 +395,8 @@ export default function Page() {
               />
             </div>
 
-            <div className="md:col-span-2">
-              <FieldLabel
-                question="What job or role best describes you?"
-                helper="Examples: student, office, retail, healthcare, trades, etc."
-                badge="Work"
-              />
-              <TextInput
-                value={job_sector}
-                onChange={setJobSector}
-                placeholder="e.g., Student, Healthcare, Retail…"
-              />
-            </div>
-
             <div>
-              <FieldLabel question="Where do you typically work or study?" badge="Work" />
-              <Select
-                value={work_location}
-                onChange={setWorkLocation}
-                options={[
-                  { value: "In-person", label: "In-person" },
-                  { value: "Hybrid", label: "Hybrid" },
-                  { value: "Remote", label: "Remote" },
-                  { value: "Not working / Student", label: "Not working / Student" },
-                ]}
-              />
-            </div>
-
-            <div>
-              <FieldLabel question="What type of home do you live in?" badge="Housing" />
+              <FieldLabel question="Home type" badge="Housing" />
               <Select
                 value={property_type}
                 onChange={setPropertyType}
@@ -420,8 +411,8 @@ export default function Page() {
 
             <div>
               <FieldLabel
-                question="Can you make upgrades to your home?"
-                helper="For example: heat pump, insulation, EV charger."
+                question="Can you make upgrades?"
+                helper="Heat pump, insulation, EV charger, etc."
                 badge="Constraints"
               />
               <Select
@@ -449,8 +440,8 @@ export default function Page() {
 
             <div>
               <FieldLabel
-                question="When might you make a big decision?"
-                helper="Like moving, buying a car, or starting upgrades."
+                question="Next big decision timeline"
+                helper="Car purchase, moving, major upgrades."
                 badge="Timing"
               />
               <Select
@@ -468,7 +459,6 @@ export default function Page() {
             <div>
               <FieldLabel
                 question="If you buy a car, what would you consider?"
-                helper="Helps tailor transportation-related impacts."
                 badge="Transportation"
               />
               <Select
@@ -484,32 +474,22 @@ export default function Page() {
               />
             </div>
 
-            {/* NEW local notes box */}
-            <div className="md:col-span-3">
+            <div>
               <FieldLabel
-                question="Local notes (optional but improves ZIP-specific accuracy)"
-                helper="Paste anything you know is true locally: your utility name, a rebate link, landlord policy, building constraints, transit reality, etc."
-                badge="Local"
+                question="Job / role"
+                helper="Examples: student, office, retail, healthcare, trades."
+                badge="Work"
               />
-              <TextArea
-                value={local_notes}
-                onChange={setLocalNotes}
-                rows={5}
-                placeholder="Optional local notes…"
-              />
+              <TextInput value={job_sector} onChange={setJobSector} placeholder="e.g., Student" />
             </div>
 
             <div className="md:col-span-3">
               <FieldLabel
-                question="Paste the policy text you want analyzed"
-                helper="Short, concrete excerpts usually work best."
-                badge="Policy excerpt"
+                question="Policy excerpt"
+                helper="Paste 1–3 paragraphs. Avoid huge PDFs here — excerpt the relevant section."
+                badge="Policy"
               />
-              <TextArea
-                value={policy_text}
-                onChange={setPolicyText}
-                placeholder="Paste 1–3 paragraphs here…"
-              />
+              <TextArea value={policy_text} onChange={setPolicyText} placeholder="Paste policy text…" />
             </div>
 
             <div className="md:col-span-3 flex flex-col md:flex-row md:items-center gap-3">
@@ -517,7 +497,7 @@ export default function Page() {
                 onClick={onAnalyze}
                 disabled={loading}
                 className="group inline-flex items-center justify-center rounded-2xl px-5 py-3 font-medium shadow-lg
-                bg-gradient-to-r from-sky-300/90 via-indigo-300/85 to-emerald-300/85 text-zinc-950
+                bg-gradient-to-r from-emerald-300/90 via-lime-300/80 to-sky-300/85 text-zinc-950
                 hover:brightness-105 active:brightness-95 disabled:opacity-60 disabled:cursor-not-allowed
                 transition"
               >
@@ -526,7 +506,7 @@ export default function Page() {
               </button>
 
               <div className="text-xs text-white/55">
-                You’ll get a structured summary + economics lens + local checks.
+                You’ll get a relevance score + prioritized next steps.
               </div>
 
               {error ? (
@@ -538,54 +518,71 @@ export default function Page() {
           </div>
         </GlassCard>
 
-        {/* Results */}
         {result ? (
           <div className="mt-10 space-y-6">
-            <SectionCard title="Plain-English summary" icon="🧠">
-              <p className="text-white/80 leading-relaxed">
-                {result.plain_english_summary || "—"}
-              </p>
-            </SectionCard>
-
-            {/* NEW: Economic summary */}
-            <SectionCard title="Economics lens (plain language)" icon="📈">
-              <p className="text-white/80 leading-relaxed">
-                {result.economic_summary || "—"}
-              </p>
-            </SectionCard>
-
-            {/* NEW: Local context summary + inferred place */}
-            <SectionCard title="Local context" icon="📍">
-              <div className="text-xs text-white/55 mb-3">
-                {result.local_profile?.place_name ? (
-                  <>
-                    Inferred area:{" "}
-                    <span className="text-white/80">
-                      {result.local_profile.place_name}, {result.local_profile.state}
+            {/* Relevance Score */}
+            <div className={`rounded-3xl border border-white/10 bg-white/[0.045] p-6 ${styles.glow}`}>
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                  <div className="text-xs text-white/60">Policy relevance score</div>
+                  <div className="mt-1 flex items-center gap-3">
+                    <div className="text-3xl font-semibold tracking-tight">
+                      {result.relevance.score_0_to_10.toFixed(1)} / 10
+                    </div>
+                    <span className={`text-xs px-3 py-1 rounded-full ${styles.pill}`}>
+                      {styles.label}
                     </span>
-                    {result.local_profile.source ? (
-                      <span className="text-white/40">
-                        {" "}
-                        • source: {result.local_profile.source}
-                      </span>
-                    ) : null}
-                  </>
-                ) : (
-                  <>Inferred area: —</>
-                )}
-              </div>
-              <p className="text-white/80 leading-relaxed">
-                {result.local_context_summary || "—"}
-              </p>
-            </SectionCard>
+                  </div>
+                  <div className="mt-2 text-white/70 text-sm max-w-2xl leading-relaxed">
+                    {result.relevance.what_it_means || "—"}
+                  </div>
+                </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <SectionCard title="Who this applies to" icon="👥">
-                <BulletList items={result.who_it_applies_to} />
+                <div className="w-full md:w-[360px]">
+                  <div className="text-xs text-white/55 mb-2">Relevance meter</div>
+                  <div className="h-3 rounded-full bg-white/10 overflow-hidden border border-white/10">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-emerald-300/90 via-lime-300/80 to-sky-300/80"
+                      style={{ width: `${meterPct}%` }}
+                    />
+                  </div>
+                  <div className="mt-2 text-xs text-white/50">
+                    Higher = more likely this policy changes a decision you could make.
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-5">
+                <SectionCard title="Why this score" icon="🔎">
+                  <BulletList items={result.relevance.reasons ?? []} />
+                </SectionCard>
+                <SectionCard title="Plain-English summary" icon="🧠">
+                  <p className="text-white/80 leading-relaxed">
+                    {result.plain_english_summary || "—"}
+                  </p>
+                </SectionCard>
+              </div>
+            </div>
+
+            {/* Do / Later / Ignore */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <SectionCard title="✅ Do now" icon="✅">
+                <BulletList items={result.actions?.do_now ?? []} />
               </SectionCard>
 
-              <SectionCard title="Actions you can take" icon="✅">
-                <BulletList items={result.actions_user_can_take} />
+              <SectionCard title="🕒 Do later" icon="🕒">
+                <BulletList items={result.actions?.do_later ?? []} />
+              </SectionCard>
+
+              <SectionCard title="🚫 Ignore for now" icon="🚫">
+                <BulletList items={result.actions?.ignore_for_now ?? []} />
+              </SectionCard>
+            </div>
+
+            {/* Details grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <SectionCard title="Who this applies to" icon="👥">
+                <BulletList items={result.who_it_applies_to ?? []} />
               </SectionCard>
 
               <SectionCard title="Upfront costs" icon="🏷️">
@@ -614,45 +611,6 @@ export default function Page() {
 
               <SectionCard title="Job impacts" icon="🧰">
                 <BulletList items={result.impacts?.job_impacts ?? []} />
-              </SectionCard>
-
-              {/* NEW: Economics lens bullets */}
-              <SectionCard title="Economics lens (details)" icon="🧮">
-                <div className="space-y-5">
-                  <div>
-                    <div className="text-xs font-semibold text-white/75 mb-2">
-                      Who pays / who benefits
-                    </div>
-                    <BulletList items={result.economics_lens?.who_pays_who_benefits ?? []} />
-                  </div>
-
-                  <div>
-                    <div className="text-xs font-semibold text-white/75 mb-2">
-                      Timeline & payback logic
-                    </div>
-                    <BulletList
-                      items={result.economics_lens?.timeline_and_payback_logic ?? []}
-                    />
-                  </div>
-
-                  <div>
-                    <div className="text-xs font-semibold text-white/75 mb-2">
-                      Market & supply chain effects
-                    </div>
-                    <BulletList
-                      items={result.economics_lens?.market_and_supply_chain_effects ?? []}
-                    />
-                  </div>
-
-                  <div>
-                    <div className="text-xs font-semibold text-white/75 mb-2">
-                      Equity / distribution notes
-                    </div>
-                    <BulletList
-                      items={result.economics_lens?.equity_distributional_notes ?? []}
-                    />
-                  </div>
-                </div>
               </SectionCard>
 
               <SectionCard title="What to check locally" icon="📍">
