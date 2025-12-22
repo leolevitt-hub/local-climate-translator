@@ -29,8 +29,5 @@
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
     "typescript": "^5"
-  },
-  "scripts": {
-    "build": "prisma generate && next build"
   }
 }
