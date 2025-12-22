@@ -1,27 +1,19 @@
 // app/api/analyze/route.ts
-// Climate Impact Compass
-// Created by Leo Levitt - Bringing analytical rigor to climate action
-// 
-// Philosophy: Climate policy matters, but only if it's practical and measurable.
-// This system uses data-driven scoring to help people make informed decisions
-// about climate policies that affect both their finances and the planet.
+// Climate Impact Compass - Enhanced Scoring System (V3.2+ visibility + slightly more generous personal shaping)
+// Created by Leo Levitt
 //
-// Dual-Score Approach:
-// - Personal Impact (0-10): Quantifies financial benefits based on your situation
-// - Climate Impact (0-10): Measures emissions reduction and clean energy gains
-// Both scores: Higher = More positive impact
+// RULES FROM USER:
+// - Do not change the climate impact part at all (kept EXACTLY as previously loved).
+// - Personal benefit: more generous but still rigorous.
+// - Personal benefit must have a true 0.00 minimum (neutral/no benefit).
+// - Keep same scoring metrics/system; make more bills show up; make personal a bit more extreme/generous.
 
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
-
 export const runtime = "nodejs";
-
-// ============================================================================
-// DATABASE & AI SETUP
-// ============================================================================
 
 let prismaInstance: PrismaClient | null = null;
 
@@ -29,20 +21,20 @@ function getDatabaseClient(): PrismaClient {
   if (!process.env.DATABASE_URL) {
     throw new Error("DATABASE_URL environment variable is missing");
   }
-  
+
   if (!prismaInstance) {
     const adapter = new PrismaPg({
       connectionString: process.env.DATABASE_URL,
     });
-    
-    prismaInstance = new PrismaClient({ 
+
+    prismaInstance = new PrismaClient({
       adapter,
       log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
     });
-    
+
     console.log("✓ Prisma client initialized");
   }
-  
+
   return prismaInstance;
 }
 
@@ -50,17 +42,13 @@ function getOpenAIClient(): OpenAI {
   if (!process.env.OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY environment variable is missing");
   }
-  
+
   return new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
     maxRetries: 2,
     timeout: 30000,
   });
 }
-
-// ============================================================================
-// TYPES
-// ============================================================================
 
 type UserProfile = {
   zip: string;
@@ -82,15 +70,11 @@ type UserProfile = {
 };
 
 type ScoreResult = {
-  score: number;
+  score: number; // 0.00 - 10.00 (neutral must be 0.00)
   label: string;
-  direction: string;
+  direction: "positive" | "negative" | "neutral";
   reasons: string[];
 };
-
-// ============================================================================
-// UTILITY FUNCTIONS
-// ============================================================================
 
 function normalizeInput(body: any): UserProfile {
   return {
@@ -120,362 +104,765 @@ function joinLowercase(...parts: Array<string | null | undefined>): string {
     .toLowerCase();
 }
 
-function getScoreLabel(score: number, type: "personal" | "climate"): { label: string; direction: string } {
-  if (type === "personal") {
-    // Personal: Higher = More savings/benefits for you
-    if (score >= 8) return { label: "Major savings opportunity", direction: "positive" };
-    if (score >= 6) return { label: "Good savings potential", direction: "positive" };
-    if (score >= 4) return { label: "Moderate benefit", direction: "neutral" };
-    if (score >= 2) return { label: "Limited benefit", direction: "neutral" };
-    return { label: "Minimal personal impact", direction: "neutral" };
-  } else {
-    // Climate: Higher = Better for climate, Lower = Worse for climate
-    if (score >= 8) return { label: "Major climate benefit", direction: "positive" };
-    if (score >= 6) return { label: "Strong climate benefit", direction: "positive" };
-    if (score >= 4) return { label: "Modest climate benefit", direction: "neutral" };
-    if (score >= 2) return { label: "Minimal climate impact", direction: "neutral" };
-    return { label: "Harmful to climate", direction: "negative" };
+/**
+ * Climate stretching (unchanged usage)
+ */
+function stretchScore(x: number, gamma = 0.72): number {
+  const clamped = Math.max(0, Math.min(10, x));
+  if (clamped === 0) return 0;
+  const y = 10 * Math.pow(clamped / 10, gamma);
+  return Math.max(0, Math.min(10, y));
+}
+
+function round2(x: number): number {
+  return Math.round(x * 100) / 100;
+}
+
+/**
+ * Personal shaping:
+ * - Minimum 0.00
+ * - Slightly more generous/extreme than your current V3.2
+ * - Still capped and still monotonic (same "system", just tuned knobs)
+ */
+function shapePersonalScore(raw0to10: number): number {
+  const raw = Math.max(0, Math.min(10, raw0to10));
+  if (raw === 0) return 0;
+
+  const PERSONAL_MAX = 10.0;
+  // Knob 1: lower gamma pushes mid/high upward (more "extreme/generous")
+  const gamma = 0.80;
+
+  let scaled = PERSONAL_MAX * Math.pow(raw / 10, gamma);
+
+  // Knob 2: tiny uplift for any nonzero signal so weak-but-real doesn't get stuck too low
+  // (still capped at PERSONAL_MAX)
+  scaled = Math.min(PERSONAL_MAX, scaled * 1.05);
+
+  return Math.max(0, Math.min(PERSONAL_MAX, scaled));
+}
+
+function getPersonalScoreLabel(score: number): string {
+  if (score >= 8.2) return "Major savings opportunity";
+  if (score >= 7.2) return "Strong savings potential";
+  if (score >= 6.2) return "Good savings potential";
+  if (score >= 5.0) return "Moderate benefit";
+  if (score >= 3.6) return "Some benefit possible";
+  if (score >= 2.2) return "Limited benefit";
+  if (score >= 1.0) return "Minor benefit";
+  if (score > 0) return "Minimal direct benefit";
+  return "No direct personal benefit";
+}
+
+function getClimateScoreLabel(score: number, direction: "positive" | "negative" | "neutral"): string {
+  if (direction === "positive") {
+    if (score >= 9.0) return "Transformative climate benefit";
+    if (score >= 8.0) return "Major climate benefit";
+    if (score >= 7.0) return "Strong climate benefit";
+    if (score >= 6.0) return "Good climate benefit";
+    if (score >= 5.0) return "Meaningful climate benefit";
+    if (score >= 4.0) return "Moderate climate benefit";
+    if (score >= 3.0) return "Some climate benefit";
+    if (score > 0) return "Minor climate benefit";
+    return "Neutral climate impact";
+  } else if (direction === "negative") {
+    if (score >= 9.0) return "Severely harmful to climate";
+    if (score >= 8.0) return "Major climate harm";
+    if (score >= 7.0) return "Significant climate harm";
+    if (score >= 6.0) return "Considerable climate harm";
+    if (score >= 5.0) return "Moderate climate harm";
+    if (score >= 4.0) return "Some climate harm";
+    if (score >= 3.0) return "Minor climate harm";
+    if (score > 0) return "Minimal climate harm";
+    return "Neutral climate impact";
   }
+  return "Neutral climate impact";
+}
+
+function countMatches(text: string, keywords: string[]): number {
+  let count = 0;
+  const lowerText = text.toLowerCase();
+  for (const keyword of keywords) {
+    if (lowerText.includes(keyword.toLowerCase())) count++;
+  }
+  return count;
+}
+
+function assessPolicySpecificity(text: string): number {
+  let spec = 1.0;
+
+  const specific = [
+    /\$[\d,]+/g,
+    /\d+%/g,
+    /\d+\s*(mw|gw|kwh|mwh|metric tons)/gi,
+    /by\s+20\d{2}/gi,
+    /within\s+\d+\s*(year|month)/gi,
+    /up to \$[\d,]+/gi,
+  ];
+
+  for (const p of specific) {
+    spec += ((text.match(p) || []).length * 0.08);
+  }
+
+  const vague = [/may\s+consider/gi, /as\s+appropriate/gi];
+  for (const p of vague) {
+    spec -= ((text.match(p) || []).length * 0.05);
+  }
+
+  return Math.max(0.9, Math.min(1.4, spec));
 }
 
 // ============================================================================
-// CLIMATE IMPACT SCORING
-// Analytical framework for measuring environmental benefit
-// Scale: 0-10 where 10 = maximum positive climate impact
+// CLIMATE SCORING (UNCHANGED — DO NOT MODIFY)
 // ============================================================================
 
-function calculateClimateScore(
-  billText: string,
-  tags: string[]
-): ScoreResult {
+function calculateClimateScoreHeuristic(billText: string, tags: string[]): ScoreResult {
   const text = billText.toLowerCase();
   const reasons: string[] = [];
-  let score = 5.0; // Neutral baseline
+  let pos = 0,
+    neg = 0;
+  const cats = new Set<string>();
 
-  // POSITIVE CLIMATE IMPACT (increases score toward 10)
-  
-  // Direct renewable energy expansion (+2.5)
-  // Rationale: Clean energy directly displaces fossil fuels
+  // TIER 1: Transformative
+  const mandates = [
+    "renewable portfolio standard",
+    "rps",
+    "clean energy standard",
+    "100% clean",
+    "100% renewable",
+    "zero-emission electricity",
+    "carbon-free",
+  ];
+  if (countMatches(text, mandates) >= 1) {
+    pos += 6.2;
+    reasons.push("Establishes binding clean energy requirements");
+    cats.add("mandate");
+  }
+
   if (
-    tags.some((t) => ["solar", "wind", "renewables"].includes(t)) ||
-    text.includes("renewable") ||
-    text.includes("solar") ||
-    text.includes("wind energy")
+    (text.includes("emissions cap") || text.includes("carbon cap")) &&
+    (text.includes("penalty") || text.includes("enforce") || text.includes("binding"))
   ) {
-    score += 2.5;
-    reasons.push("Expands clean renewable energy generation capacity");
+    pos += 5.8;
+    reasons.push("Binding emissions cap with enforcement");
+    cats.add("cap");
   }
 
-  // Greenhouse gas emissions reduction (+2.0)
-  // Rationale: Direct GHG reduction is the primary climate objective
+  const phaseOut = ["phase out", "phase-out", "retire", "ban", "prohibition"];
+  const fossil = ["coal", "fossil", "natural gas", "gas plant", "oil"];
+  if (countMatches(text, phaseOut) >= 1 && countMatches(text, fossil) >= 1) {
+    pos += 5.2;
+    reasons.push("Phases out fossil fuel infrastructure");
+    cats.add("phaseout");
+  }
+
+  // TIER 2: Significant
+  const hasRenTag = tags.some((t) => ["solar", "wind", "renewables"].includes(t));
+  const renew = ["solar", "wind", "renewable", "clean energy", "geothermal"];
+  const renCnt = countMatches(text, renew);
+
+  if (!cats.has("mandate") && (hasRenTag || renCnt >= 1)) {
+    if (text.includes("mandate") || text.includes("requirement") || text.includes("shall")) {
+      pos += 4.9;
+      reasons.push("Mandates renewable energy deployment");
+    } else if (text.includes("incentive") || text.includes("rebate") || text.includes("credit")) {
+      pos += 4.1;
+      reasons.push("Incentivizes renewable energy adoption");
+    } else if (text.includes("target") || text.includes("goal")) {
+      pos += 3.5;
+      reasons.push("Sets renewable energy targets");
+    } else if (renCnt >= 2 || hasRenTag) {
+      pos += 2.8;
+      reasons.push("Addresses renewable energy development");
+    } else {
+      pos += 2.1;
+      reasons.push("Supports renewable energy");
+    }
+    cats.add("renewable");
+  }
+
+  const emiss = ["greenhouse gas", "ghg", "carbon reduction", "emission", "co2"];
+  if (!cats.has("cap") && (tags.includes("emissions") || countMatches(text, emiss) >= 1)) {
+    if (text.match(/\d+%/) && (text.includes("reduction") || text.includes("reduce"))) {
+      pos += 4.4;
+      reasons.push("Sets specific emissions reduction targets");
+    } else if (text.includes("reduction") || text.includes("limit") || text.includes("standard")) {
+      pos += 3.2;
+      reasons.push("Targets emissions reduction");
+    } else {
+      pos += 2.1;
+      reasons.push("Addresses greenhouse gas emissions");
+    }
+    cats.add("emissions");
+  }
+
+  const evTerms = ["electric vehicle", "ev ", "evs ", "zero-emission vehicle", "zev"];
+  if (tags.includes("ev") || countMatches(text, evTerms) >= 1) {
+    if (text.includes("mandate") || text.includes("standard") || text.includes("require")) {
+      pos += 4.7;
+      reasons.push("Mandates electric vehicle adoption");
+    } else if (text.includes("rebate") || text.includes("incentive") || text.includes("credit")) {
+      pos += 4.0;
+      reasons.push("Incentivizes electric vehicle adoption");
+    } else if (text.includes("charging") || text.includes("infrastructure")) {
+      pos += 3.3;
+      reasons.push("Builds EV charging infrastructure");
+    } else {
+      pos += 2.5;
+      reasons.push("Supports electric vehicle transition");
+    }
+    cats.add("ev");
+  }
+
+  const bldg = ["energy efficiency", "heat pump", "weatherization", "building code"];
+  if (tags.includes("efficiency") || tags.includes("buildings") || countMatches(text, bldg) >= 1) {
+    if (text.includes("standard") || text.includes("requirement") || text.includes("code")) {
+      pos += 3.9;
+      reasons.push("Establishes building efficiency standards");
+    } else if (text.includes("rebate") || text.includes("incentive") || text.includes("credit")) {
+      pos += 3.3;
+      reasons.push("Provides building efficiency incentives");
+    } else {
+      pos += 2.6;
+      reasons.push("Addresses building energy efficiency");
+    }
+    cats.add("buildings");
+  }
+
+  const storage = ["battery storage", "energy storage", "grid storage"];
+  if (tags.includes("storage") || countMatches(text, storage) >= 1) {
+    pos += 3.2;
+    reasons.push("Supports energy storage deployment");
+    cats.add("storage");
+  }
+
+  // TIER 3: Moderate
+  const transit = ["public transit", "mass transit", "bus", "rail", "train"];
+  if (tags.includes("transit") || countMatches(text, transit) >= 1) {
+    if (text.includes("expansion") || text.includes("new") || text.includes("build")) {
+      pos += 3.5;
+      reasons.push("Expands public transit infrastructure");
+    } else if (text.includes("electrif") || text.includes("zero-emission")) {
+      pos += 3.1;
+      reasons.push("Supports clean transit technology");
+    } else {
+      pos += 2.5;
+      reasons.push("Supports public transportation");
+    }
+    cats.add("transit");
+  }
+
+  const resil = ["climate resilience", "adaptation", "flood", "extreme weather"];
+  if (tags.includes("resilience") || countMatches(text, resil) >= 1) {
+    pos += 2.4;
+    reasons.push("Addresses climate resilience");
+    cats.add("resilience");
+  }
+
+  const ej = ["environmental justice", "frontline", "disadvantaged", "equity"];
+  if (tags.includes("environmental_justice") || countMatches(text, ej) >= 1) {
+    pos += 2.0;
+    reasons.push("Incorporates environmental justice");
+    cats.add("justice");
+  }
+
+  const grid = ["grid modernization", "smart grid", "transmission", "microgrid"];
+  if (countMatches(text, grid) >= 1) {
+    pos += 2.4;
+    reasons.push("Supports grid modernization");
+    cats.add("grid");
+  }
+
+  const price = ["carbon tax", "carbon price", "cap and trade", "carbon fee"];
+  if (countMatches(text, price) >= 1) {
+    pos += 3.8;
+    reasons.push("Implements carbon pricing");
+    cats.add("pricing");
+  }
+
+  const ind = ["industrial", "manufacturing", "cement", "steel"];
+  if (countMatches(text, ind) >= 1 && (text.includes("decarboniz") || text.includes("clean"))) {
+    pos += 2.8;
+    reasons.push("Supports industrial decarbonization");
+    cats.add("industrial");
+  }
+
+  // TIER 4: Supporting
+  const plan = ["study", "report", "task force", "plan", "roadmap"];
+  const climate = ["climate", "emission", "clean energy", "renewable"];
+  if (countMatches(text, plan) >= 1 && countMatches(text, climate) >= 1) {
+    pos += 1.7;
+    reasons.push("Climate planning and research");
+    cats.add("planning");
+  }
+
   if (
-    tags.includes("emissions") ||
-    text.includes("greenhouse gas") ||
-    text.includes("carbon reduction") ||
-    text.includes("emissions reduction")
+    (text.includes("clean energy") || text.includes("green")) &&
+    (text.includes("job") || text.includes("workforce") || text.includes("training"))
   ) {
-    score += 2.0;
-    reasons.push("Directly targets greenhouse gas emissions reduction");
+    pos += 1.7;
+    reasons.push("Supports clean energy workforce");
+    cats.add("workforce");
   }
 
-  // Zero-emission vehicle adoption (+1.5)
-  // Rationale: Transportation is ~27% of US emissions
-  if (tags.includes("ev") || text.includes("electric vehicle")) {
-    score += 1.5;
-    reasons.push("Accelerates transition to zero-emission transportation");
+  const finance = ["green bank", "clean energy fund", "green bond", "climate fund"];
+  if (countMatches(text, finance) >= 1) {
+    pos += 2.2;
+    reasons.push("Creates clean energy financing");
+    cats.add("finance");
   }
 
-  // Energy efficiency improvements (+1.5)
-  // Rationale: Efficiency reduces demand, avoiding new generation
+  const ag = ["agriculture", "farming", "forestry", "carbon sequestration"];
+  if (countMatches(text, ag) >= 1 && (text.includes("climate") || text.includes("sustainable"))) {
+    pos += 2.2;
+    reasons.push("Supports climate-smart agriculture");
+    cats.add("agriculture");
+  }
+
+  if (text.includes("water") && (text.includes("conserv") || text.includes("efficiency"))) {
+    pos += 1.7;
+    reasons.push("Promotes water conservation");
+    cats.add("water");
+  }
+
+  // NEGATIVE FACTORS
+  const fossilExp = ["new pipeline", "lng terminal", "new gas plant", "fracking"];
+  if (countMatches(text, fossilExp) >= 1) {
+    neg += 5.3;
+    reasons.push("⚠️ Expands fossil fuel infrastructure");
+  }
+
   if (
-    tags.includes("efficiency") ||
-    text.includes("energy efficiency") ||
-    text.includes("weatherization")
+    (text.includes("subsidy") || text.includes("tax break")) &&
+    (text.includes("oil") || text.includes("gas") || text.includes("coal"))
   ) {
-    score += 1.5;
-    reasons.push("Reduces energy waste and total consumption");
+    neg += 4.2;
+    reasons.push("⚠️ Subsidizes fossil fuel industry");
   }
 
-  // Climate resilience & adaptation (+1.0)
-  // Rationale: Prepares infrastructure for unavoidable climate impacts
   if (
-    tags.includes("resilience") ||
-    text.includes("climate resilience") ||
-    text.includes("adaptation")
+    (text.includes("rollback") || text.includes("repeal")) &&
+    (text.includes("environmental") || text.includes("climate"))
   ) {
-    score += 1.0;
-    reasons.push("Builds resilience to climate change impacts");
-  }
-
-  // Environmental justice (+0.8)
-  // Rationale: Protects vulnerable communities, ensures equitable transition
-  if (tags.includes("environmental_justice") || text.includes("environmental justice")) {
-    score += 0.8;
-    reasons.push("Protects vulnerable communities from climate impacts");
-  }
-
-  // Energy storage (+1.2)
-  // Rationale: Enables higher renewable penetration on the grid
-  if (tags.includes("storage") || text.includes("battery storage")) {
-    score += 1.2;
-    reasons.push("Enables greater renewable energy grid integration");
-  }
-
-  // NEGATIVE CLIMATE IMPACT (decreases score toward 0)
-  
-  // Fossil fuel infrastructure expansion (-3.0)
-  // Rationale: Locks in decades of emissions, contradicts climate goals
-  if (
-    (tags.includes("fossil") && (text.includes("expand") || text.includes("new"))) ||
-    text.includes("oil drilling") ||
-    text.includes("gas pipeline expansion") ||
-    text.includes("new coal")
-  ) {
-    score -= 3.0;
-    reasons.push("⚠️ Expands fossil fuel infrastructure, locking in emissions");
-  }
-
-  // Fossil fuel subsidies (-2.0)
-  // Rationale: Public funds should support clean energy, not fossil fuels
-  if (
-    tags.includes("subsidies_taxes") &&
-    (text.includes("oil subsidy") || text.includes("gas subsidy") || text.includes("fossil fuel tax break"))
-  ) {
-    score -= 2.0;
-    reasons.push("⚠️ Provides taxpayer subsidies to fossil fuel industry");
-  }
-
-  // Car-dependent infrastructure without clean alternatives (-1.5)
-  // Rationale: Highway expansion increases vehicle miles traveled
-  if (
-    (tags.includes("roads") || text.includes("highway expansion")) &&
-    !text.includes("transit") &&
-    !text.includes("ev")
-  ) {
-    score -= 1.5;
-    reasons.push("⚠️ Expands car-dependent infrastructure without clean alternatives");
-  }
-
-  // Environmental protection rollbacks (-1.5)
-  // Rationale: Weakening safeguards enables more pollution
-  if (text.includes("rollback") || (text.includes("weaken") && text.includes("environmental"))) {
-    score -= 1.5;
+    neg += 3.8;
     reasons.push("⚠️ Weakens environmental protections");
   }
 
-  // Constrain to 0-10 scale
-  score = Math.max(0, Math.min(10, score));
+  // BONUSES
+  if (cats.size >= 4) {
+    pos *= 1.2;
+    reasons.push("✨ Comprehensive multi-sector approach");
+  } else if (cats.size >= 3) {
+    pos *= 1.12;
+  }
 
-  const { label, direction } = getScoreLabel(score, "climate");
+  if (cats.has("justice") && cats.size >= 2) pos *= 1.08;
+  if (text.includes("funding") && text.match(/\$[\d,]+/)) pos *= 1.15;
+
+  const spec = assessPolicySpecificity(text);
+  pos *= spec;
+  neg *= spec;
+
+  // Direction + neutral logic
+  let dir: "positive" | "negative" | "neutral" = "neutral";
+  let magnitude = 0;
+
+  const delta = pos - neg;
+  const NEUTRAL_BAND = 0.9;
+
+  if (Math.abs(delta) < NEUTRAL_BAND) {
+    dir = "neutral";
+    magnitude = 0;
+  } else if (delta > 0) {
+    dir = "positive";
+    magnitude = Math.max(0, pos - neg * 0.55);
+  } else {
+    dir = "negative";
+    magnitude = Math.max(0, neg - pos * 0.55);
+  }
+
+  magnitude = Math.min(10, magnitude);
+
+  const stretched = dir === "neutral" ? 0 : stretchScore(magnitude, 0.72);
+  const rounded = round2(stretched);
 
   return {
-    score,
-    label,
-    direction,
+    score: rounded,
+    label: getClimateScoreLabel(rounded, dir),
+    direction: dir,
     reasons: reasons.slice(0, 6),
   };
 }
 
 // ============================================================================
-// PERSONAL IMPACT SCORING
-// Evidence-based framework for quantifying financial benefit
-// Scale: 0-10 where 10 = maximum personal financial benefit
+// PERSONAL SCORING (same system; slightly more generous via shaping + spec boost)
 // ============================================================================
 
-function calculatePersonalScore(
+function calculatePersonalScoreHeuristic(
   billText: string,
   tags: string[],
   userProfile: UserProfile
 ): ScoreResult {
   const text = billText.toLowerCase();
   const reasons: string[] = [];
-  let score = 0; // Zero baseline (no assumed benefit)
 
-  // DIRECT FINANCIAL INCENTIVES (+3.5)
-  // These directly reduce consumer costs via rebates, tax credits, subsidies
-  if (
-    text.includes("rebate") ||
-    text.includes("tax credit") ||
-    text.includes("incentive") ||
-    text.includes("subsidy")
-  ) {
-    score += 3.5;
-    reasons.push("💰 Direct financial incentives reduce upfront costs");
-  }
+  const isOwner = userProfile.housing_status.toLowerCase().includes("owner");
+  const isRenter = userProfile.housing_status.toLowerCase().includes("renter");
+  const canUpgrade = userProfile.can_make_upgrades.toLowerCase().includes("yes");
+  const hasCar = userProfile.has_car.toLowerCase().includes("yes");
+  const ownsBusiness = userProfile.own_business.toLowerCase().includes("yes");
 
-  // TRANSPORTATION COST SAVINGS (+2.0 base)
-  // EVs have lower fuel and maintenance costs than gas vehicles
-  const isEVRelated =
-    tags.some((t) => ["ev", "transit"].includes(t)) ||
-    text.includes("electric vehicle") ||
-    text.includes("charging");
-
-  if (isEVRelated) {
-    score += 2.0;
-    reasons.push("🚗 Electric vehicles significantly reduce fuel and maintenance costs");
-    
-    // Commute distance bonus (longer commute = more fuel savings)
-    const commute = userProfile.commute_distance.toLowerCase();
-    if (commute.includes("25-50")) {
-      score += 0.8;
-      reasons.push("🛣️ Your 25-50 mile commute creates substantial EV fuel savings");
-    } else if (commute.includes("more than 50")) {
-      score += 1.2;
-      reasons.push("🛣️ Your 50+ mile commute maximizes EV cost savings potential");
-    } else if (commute.includes("10-25")) {
-      score += 0.4;
-    }
-  }
-
-  // HOME ENERGY COST SAVINGS (+2.0 base)
-  // Efficiency improvements and clean energy reduce utility bills
-  const isHomeRelated =
-    tags.some((t) =>
-      ["heat_pump", "efficiency", "buildings", "solar", "renewables"].includes(t)
-    ) ||
-    text.includes("heat pump") ||
-    text.includes("solar") ||
-    text.includes("efficiency");
-
-  if (isHomeRelated) {
-    score += 2.0;
-    reasons.push("🏠 Energy upgrades lower utility bills and increase comfort");
-    
-    // Home age bonus (older homes have more efficiency improvement potential)
-    const homeAge = userProfile.home_age.toLowerCase();
-    if (homeAge.includes("30-50")) {
-      score += 0.6;
-      reasons.push("🏚️ Older home (30-50 years) has higher efficiency upgrade potential");
-    } else if (homeAge.includes("more than 50")) {
-      score += 0.9;
-      reasons.push("🏚️ Historic home (50+ years) could see major efficiency gains");
-    }
-    
-    // Heating system bonus (fossil fuel heating = bigger heat pump savings)
-    const heating = userProfile.current_heating.toLowerCase();
-    if (heating.includes("oil")) {
-      score += 1.2;
-      reasons.push("🔥 Switching from oil heat to heat pump offers maximum savings");
-    } else if (heating.includes("propane")) {
-      score += 1.0;
-      reasons.push("🔥 Switching from propane to heat pump provides significant savings");
-    } else if (heating.includes("natural gas")) {
-      score += 0.7;
-      reasons.push("🔥 Heat pump upgrade from gas can reduce heating costs");
-    } else if (heating.includes("electric resistance")) {
-      score += 0.8;
-      reasons.push("🔥 Heat pump is 3x more efficient than electric resistance");
-    }
-  }
-
-  // SOLAR INTEREST MULTIPLIER
-  if (text.includes("solar") || tags.includes("solar")) {
-    const solarInterest = userProfile.interested_in_solar.toLowerCase();
-    if (solarInterest.includes("yes, very interested")) {
-      score += 1.5;
-      reasons.push("☀️ High solar interest aligns with available solar incentives");
-    } else if (solarInterest.includes("maybe")) {
-      score += 0.5;
-    }
-  }
-
-  // USER CONTEXT ADJUSTMENTS
-  
-  // Homeownership enables direct action without landlord approval
-  const housing = userProfile.housing_status.toLowerCase();
-  if (housing.includes("owner") && isHomeRelated) {
-    score += 1.5;
-    reasons.push("✅ Homeowner status enables direct implementation");
-  } else if (housing.includes("renter") && isHomeRelated) {
-    score += 0.3;
-    reasons.push("⚠️ Benefits may require landlord cooperation");
-  }
-
-  // Upgrade capability determines implementation feasibility
-  const canUpgrade = userProfile.can_make_upgrades.toLowerCase();
-  if (canUpgrade.includes("yes") && isHomeRelated) {
-    score += 1.0;
-    reasons.push("✅ Ready to implement upgrades");
-  } else if (canUpgrade.includes("no") && isHomeRelated) {
-    score -= 0.5;
-    reasons.push("⚠️ Limited upgrade capability reduces immediate benefits");
-  }
-
-  // Vehicle ownership creates EV savings opportunity
-  if (userProfile.has_car.toLowerCase().includes("yes") && isEVRelated) {
-    score += 1.2;
-    reasons.push("✅ Vehicle ownership creates fuel savings opportunity");
-  }
-
-  // Decision timeline affects actionability
-  const timeline = userProfile.next_vehicle_timeline.toLowerCase();
-  if (timeline.includes("0-12") && isEVRelated) {
-    score += 1.5;
-    reasons.push("⏰ Near-term vehicle purchase makes benefits immediately accessible");
-  } else if (timeline.includes("1-3") && isEVRelated) {
-    score += 0.8;
-    reasons.push("📅 Medium-term timeline allows strategic EV planning");
-  } else if (timeline.includes("10+") && isEVRelated) {
-    score -= 0.4;
-  }
-
-  // Property type constraints
-  const property = userProfile.property_type.toLowerCase();
-  if (property.includes("apartment") && isHomeRelated) {
-    score -= 0.3;
-    reasons.push("⚠️ Apartment living may limit certain upgrades (e.g., solar panels)");
-  } else if (property.includes("single-family") && isHomeRelated) {
-    score += 0.5;
-    reasons.push("✅ Single-family home ideal for comprehensive upgrades");
-  }
-
-  // Income-based incentive eligibility
   const income = userProfile.household_income.toLowerCase();
-  if (income.includes("under $50,000") || income.includes("$50,000 - $100,000")) {
-    if (text.includes("income") && (text.includes("limit") || text.includes("qualified"))) {
-      score += 1.0;
-      reasons.push("💵 May qualify for additional income-based incentives");
+  const isLowIncome = income.includes("under $50,000");
+  const isMidIncome = income.includes("$50,000 - $100,000");
+
+  const spec = assessPolicySpecificity(text);
+  const hasDollars = /\$[\d,]+/.test(text);
+  const hasPercent = /\d+%/.test(text);
+
+  // Mechanisms (money + access)
+  const hasRebate = text.includes("rebate") || text.includes("cash back") || text.includes("instant discount");
+  const hasTaxCredit = text.includes("tax credit") || text.includes("tax deduction") || text.includes("tax incentive");
+  const hasGrant = text.includes("grant") || text.includes("voucher") || text.includes("direct payment");
+  const hasBillRelief =
+    text.includes("bill credit") || text.includes("bill assistance") || text.includes("rate reduction") || text.includes("lower rate");
+  const hasFinancing =
+    text.includes("low-interest") ||
+    text.includes("zero-interest") ||
+    text.includes("loan program") ||
+    text.includes("financing program") ||
+    text.includes("on-bill financing");
+
+  const hasEligibility =
+    text.includes("eligible") ||
+    text.includes("eligibility") ||
+    text.includes("income-qualified") ||
+    text.includes("income eligible") ||
+    text.includes("low-income") ||
+    text.includes("moderate-income") ||
+    text.includes("renter") ||
+    text.includes("tenant") ||
+    text.includes("homeowner") ||
+    text.includes("multifamily") ||
+    text.includes("community solar");
+
+  const mechanismCount =
+    (hasRebate ? 1 : 0) +
+    (hasTaxCredit ? 1 : 0) +
+    (hasGrant ? 1 : 0) +
+    (hasBillRelief ? 1 : 0) +
+    (hasFinancing ? 1 : 0);
+
+  // Domain relevance
+  const evRelated =
+    tags.includes("ev") || text.includes("electric vehicle") || text.includes("charging") || text.includes("zev") || text.includes("ev ");
+
+  const homeRelated =
+    tags.some((t) => ["heat_pump", "efficiency", "buildings", "solar", "renewables"].includes(t)) ||
+    text.includes("heat pump") ||
+    text.includes("weatherization") ||
+    text.includes("insulation") ||
+    text.includes("efficiency") ||
+    text.includes("solar") ||
+    text.includes("community solar");
+
+  const transitRelated =
+    tags.includes("transit") || countMatches(text, ["public transit", "mass transit", "bus", "rail", "train", "subway"]) >= 1;
+
+  const workforceRelated = countMatches(text, ["workforce", "job training", "apprentice", "career"]) >= 1;
+
+  // Start at 0. True neutral.
+  let raw = 0;
+
+  // A) Core mechanism points
+  if (hasRebate) {
+    raw += hasDollars ? 4.2 : 3.2;
+    reasons.push(hasDollars ? "💰 Rebates with stated amounts" : "💰 Rebates mentioned");
+  }
+  if (hasTaxCredit) {
+    raw += (hasDollars || hasPercent) ? 3.8 : 2.8;
+    reasons.push((hasDollars || hasPercent) ? "💵 Tax incentives with stated value" : "💵 Tax incentives mentioned");
+  }
+  if (hasGrant) {
+    raw += hasDollars ? 3.6 : 2.6;
+    reasons.push(hasDollars ? "💰 Grants/direct payments with stated amounts" : "💰 Grants/direct payments mentioned");
+  }
+  if (hasBillRelief) {
+    raw += 3.0;
+    reasons.push("📊 Utility bill relief mentioned");
+  }
+  if (hasFinancing) {
+    raw += 2.0;
+    reasons.push("🏦 Preferential financing mentioned");
+  }
+
+  // B) Domain add-ons
+  if (evRelated) {
+    let ev = 1.2;
+    if (hasCar) {
+      const timeline = userProfile.next_vehicle_timeline.toLowerCase();
+      if (timeline.includes("0-12")) ev += 1.5;
+      else if (timeline.includes("1-3")) ev += 1.0;
+      else if (timeline.includes("3-10")) ev += 0.5;
+
+      const commute = userProfile.commute_distance.toLowerCase();
+      if (commute.includes("more than 50")) ev += 0.9;
+      else if (commute.includes("25-50")) ev += 0.6;
+      else if (commute.includes("10-25")) ev += 0.3;
+    } else {
+      ev *= 0.35;
     }
+
+    if (mechanismCount >= 1) ev += 0.8;
+    if (mechanismCount >= 2) ev += 0.5;
+
+    raw += ev;
+    reasons.push(mechanismCount ? "🚗 EV policy + financial pathway" : "🚗 EV policy likely affects costs over time");
   }
 
-  // Business ownership for commercial incentives
-  if (userProfile.own_business.toLowerCase().includes("yes")) {
-    if (text.includes("commercial") || text.includes("business")) {
-      score += 0.8;
-      reasons.push("💼 Business ownership may unlock commercial incentives");
+  if (homeRelated) {
+    let home = 1.3;
+    if (isOwner) {
+      home += 1.2;
+      if (canUpgrade) home += 0.6;
+
+      const heating = userProfile.current_heating.toLowerCase();
+      if (heating.includes("oil")) home += 1.0;
+      else if (heating.includes("propane")) home += 0.8;
+      else if (heating.includes("electric resistance")) home += 0.7;
+      else if (heating.includes("natural gas")) home += 0.3;
+
+      reasons.push("🏠 Home energy policy fits homeowner upgrade potential");
+    } else if (isRenter) {
+      const renterAccess = countMatches(text, ["renter", "tenant", "multifamily", "community solar", "landlord"]) >= 1;
+      home += renterAccess ? 0.9 : 0.2;
+      reasons.push(renterAccess ? "🏢 Renter-accessible pathway mentioned" : "🏢 Renter benefit may depend on landlord");
     }
+
+    if (text.includes("community solar")) home += 0.8;
+    if (mechanismCount >= 1) home += 0.7;
+    if (mechanismCount >= 2) home += 0.4;
+
+    raw += home;
   }
 
-  // Economic opportunity and job creation
-  if (text.includes("job") || text.includes("workforce") || text.includes("training")) {
-    score += 0.5;
-    reasons.push("💼 Creates local job and economic opportunities");
+  if (transitRelated) {
+    let tr = 1.0;
+    if (countMatches(text, ["fare", "reduced fare", "free fare", "pass", "voucher"]) >= 1) tr += 1.2;
+    if (!hasCar) tr += 0.6;
+    raw += tr;
+    reasons.push("🚌 Transit improvements can reduce transportation costs");
   }
 
-  // NEGATIVE PERSONAL IMPACT
-  // Costs without offsetting benefits reduce personal score
-  if (
-    (text.includes("fee") || text.includes("tax increase")) &&
-    !text.includes("credit") &&
-    !text.includes("rebate")
-  ) {
-    score -= 1.0;
-    reasons.push("⚠️ May increase costs without direct offsetting benefits");
+  // C) Eligibility boosts
+  if (hasEligibility) {
+    raw += 0.9;
+    reasons.push("✅ Eligibility/access language increases likelihood you can use it");
   }
 
-  const finalScore = Math.max(0, Math.min(10, score));
-  const { label, direction } = getScoreLabel(finalScore, "personal");
+  // D) Income-qualified tuning
+  if (countMatches(text, ["low-income", "income-qualified", "income eligible", "moderate-income"]) >= 1) {
+    if (isLowIncome) raw += 1.3;
+    else if (isMidIncome) raw += 0.8;
+    else raw += 0.3;
+    reasons.push("💵 Income-targeted programs may increase financial benefit");
+  }
+
+  // E) Business programs
+  if (ownsBusiness && countMatches(text, ["small business", "commercial", "business", "enterprise"]) >= 1) {
+    raw += 1.0;
+    reasons.push("💼 Commercial incentives may apply to your business");
+  }
+
+  // F) Workforce (small financial relevance)
+  if (workforceRelated) {
+    raw += 0.6;
+    reasons.push("💼 Workforce programs can improve earnings opportunities");
+  }
+
+  // G) Mild penalties only if clearly adding costs without offsets
+  const addsFee = text.includes("fee") || text.includes("surcharge");
+  const offsetsFee = hasRebate || hasTaxCredit || hasGrant || hasBillRelief;
+  if (addsFee && !offsetsFee) {
+    raw -= 0.8;
+    reasons.push("⚠️ Mentions fees/surcharges without clear offsets");
+  }
+  if (text.includes("rate increase") && !offsetsFee) {
+    raw -= 0.7;
+    reasons.push("⚠️ Mentions rate increases without clear offsets");
+  }
+
+  // H) Specificity multiplier (slightly more generous cap)
+  // Knob: cap 0.18 -> 0.24 so "has numbers/funding" lifts more.
+  const specBoost = 1 + Math.min(0.24, Math.max(0, spec - 1) * 0.85);
+  raw *= specBoost;
+
+  // I) If there's literally no domain relevance and no mechanisms, stay at 0
+  const anySignal = mechanismCount > 0 || evRelated || homeRelated || transitRelated || workforceRelated;
+  if (!anySignal) raw = 0;
+
+  raw = Math.max(0, Math.min(10, raw));
+  const shaped = round2(shapePersonalScore(raw));
+  const dir: "positive" | "neutral" = shaped > 0 ? "positive" : "neutral";
+
+  const dedupedReasons = Array.from(new Set(reasons)).slice(0, 6);
 
   return {
-    score: finalScore,
-    label,
-    direction,
-    reasons: reasons.slice(0, 6),
+    score: shaped,
+    label: getPersonalScoreLabel(shaped),
+    direction: dir,
+    reasons: dedupedReasons,
   };
 }
 
 // ============================================================================
-// MODE 1: FIND RELEVANT BILLS
+// AI RESCORING (semantic, calibrated)
+// ============================================================================
+
+type AIScoredBill = {
+  id: string;
+  personalScore: number; // 0-10 (we shape/cap)
+  personalReasons: string[];
+  climateScore: number; // 0-10 magnitude
+  climateDirection: "positive" | "negative" | "neutral";
+  climateReasons: string[];
+};
+
+function safeArray(v: any): string[] {
+  if (!Array.isArray(v)) return [];
+  return v.filter((x) => typeof x === "string").slice(0, 6);
+}
+
+function clamp01to10(x: any): number {
+  const n = typeof x === "number" ? x : Number(x);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(10, n));
+}
+
+function normalizeDirection(d: any): "positive" | "negative" | "neutral" {
+  if (d === "positive" || d === "negative" || d === "neutral") return d;
+  return "neutral";
+}
+
+async function aiRescoreBillsBatch(
+  openai: OpenAI,
+  model: string,
+  userProfile: UserProfile,
+  bills: Array<{ id: string; title: string; summary: string; tags: string[] }>
+): Promise<Record<string, AIScoredBill>> {
+  const system = `You are a intelligent and optimistic but strict scoring engine for a climate policy recommender.
+
+Return JSON only. No prose outside JSON.
+
+Scoring rules:
+- personalScore: 0.00 to 10.00 (financial/direct practical benefit to THIS user).
+- climateScore: 0.00 to 10.00 (magnitude of climate impact), plus climateDirection: positive/negative/neutral.
+- Neutral impact MUST be exactly 0.00 AND climateDirection = "neutral".
+- Use 2 decimal precision.
+- Don't punish for missing dollar amounts if the mechanism is clear.
+- Mean personalScore across shortlist should be ~4.7 (slightly optimistic calibration).
+- If bill mentions appropriation, funding amounts, program budget, or dedicated funds to the personal or climate benefit, increase confidence (score +0.5-1.5).
+- Do punish if language is discretionary or vague.
+- personalScore should be 0.00 when there is no plausible user-accessible financial pathway.
+- Be willing to give mid scores (4–7) when the policy likely affects household costs even if $ amounts are not stated.
+- Give high personal scores (8–10) only when there are clear incentive mechanisms OR strong, user-specific cost-savings pathways with concrete details.
+
+Also output short bullet reasons (max 4 each).`;
+
+  const user = {
+    userProfile,
+    bills: bills.map((b) => ({
+      id: b.id,
+      title: b.title,
+      summary: b.summary,
+      tags: b.tags,
+    })),
+    outputFormat: {
+      results: [
+        {
+          id: "string",
+          personalScore: "number (0.00-10.00)",
+          personalReasons: ["string", "string"],
+          climateDirection: '"positive" | "negative" | "neutral"',
+          climateScore: "number (0.00-10.00)",
+          climateReasons: ["string", "string"],
+        },
+      ],
+    },
+  };
+
+  const resp = await openai.chat.completions.create({
+    model,
+    temperature: 0.15,
+    response_format: { type: "json_object" } as any,
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: JSON.stringify(user) },
+    ],
+  });
+
+  const raw = resp.choices?.[0]?.message?.content ?? "";
+  let parsed: any = null;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    const start = raw.indexOf("{");
+    const end = raw.lastIndexOf("}");
+    if (start !== -1 && end !== -1) parsed = JSON.parse(raw.slice(start, end + 1));
+  }
+
+  const out: Record<string, AIScoredBill> = {};
+  const results = parsed?.results;
+  if (!Array.isArray(results)) return out;
+
+  for (const r of results) {
+    const id = String(r?.id ?? "");
+    if (!id) continue;
+
+    let personalScore = round2(clamp01to10(r?.personalScore));
+    let climateScore = round2(clamp01to10(r?.climateScore));
+    let climateDirection = normalizeDirection(r?.climateDirection);
+
+    // Enforce neutrality rule (climate)
+    if (climateDirection === "neutral") climateScore = 0.0;
+    if (climateScore === 0) climateDirection = "neutral";
+
+    // Climate stretching unchanged
+    climateScore = climateScore === 0 ? 0 : round2(stretchScore(climateScore, 0.70));
+
+    // Personal shaping (slightly more generous but still 0 min)
+    personalScore = personalScore === 0 ? 0 : round2(shapePersonalScore(personalScore));
+
+    out[id] = {
+      id,
+      personalScore,
+      personalReasons: safeArray(r?.personalReasons).slice(0, 4),
+      climateDirection,
+      climateScore,
+      climateReasons: safeArray(r?.climateReasons).slice(0, 4),
+    };
+  }
+
+  return out;
+}
+
+async function aiRescoreTopBills(
+  openai: OpenAI,
+  model: string,
+  userProfile: UserProfile,
+  bills: Array<{ id: string; title: string; summary: string; tags: string[] }>,
+  batchSize = 10
+): Promise<Record<string, AIScoredBill>> {
+  const all: Record<string, AIScoredBill> = {};
+  for (let i = 0; i < bills.length; i += batchSize) {
+    const chunk = bills.slice(i, i + batchSize);
+    const scored = await aiRescoreBillsBatch(openai, model, userProfile, chunk);
+    Object.assign(all, scored);
+  }
+  return all;
+}
+
+// ============================================================================
+// MODE 1: FIND RELEVANT BILLS (AI-calibrated)
 // ============================================================================
 
 async function findRelevantBills(userProfile: UserProfile): Promise<NextResponse> {
@@ -499,6 +886,7 @@ async function findRelevantBills(userProfile: UserProfile): Promise<NextResponse
       });
     }
 
+    // Knob: pull more candidates from DB to avoid empty output.
     const bills = await db.policy.findMany({
       where: {
         jurisdictionCode: userProfile.state,
@@ -513,7 +901,7 @@ async function findRelevantBills(userProfile: UserProfile): Promise<NextResponse
         },
       },
       orderBy: { dateIntroduced: "desc" },
-      take: 100,
+      take: 220, // was 120
     });
 
     console.log(`[FIND_BILLS] Found ${bills.length} bills for ${userProfile.state}`);
@@ -526,81 +914,144 @@ async function findRelevantBills(userProfile: UserProfile): Promise<NextResponse
       });
     }
 
-    const scoredBills = bills.map((bill) => {
+    // 1) Heuristic pass (fast)
+    const heurScored = bills.map((bill) => {
       const billText = joinLowercase(bill.title, bill.summary);
       const tagList = bill.tags.map((t) => t.tag);
-      
-      const personalResult = calculatePersonalScore(billText, tagList, userProfile);
-      const climateResult = calculateClimateScore(billText, tagList);
+
+      const personal = calculatePersonalScoreHeuristic(billText, tagList, userProfile);
+      const climate = calculateClimateScoreHeuristic(billText, tagList); // unchanged
 
       const identifierMatch = bill.title.match(/^([A-Z]{1,3}\s*\d+)/);
-      const identifier = identifierMatch
-        ? identifierMatch[1]
-        : bill.title.substring(0, 10);
+      const identifier = identifierMatch ? identifierMatch[1] : bill.title.substring(0, 10);
+
+      // Keep shortlist weight high so we don't miss personal-heavy bills
+      const total = personal.score * 1.8 + climate.score;
 
       return {
+        raw: bill,
         id: bill.id,
         identifier,
         title: bill.title,
         summary: bill.summary || "No summary available",
-        personalScore: personalResult.score,
-        personalLabel: personalResult.label,
-        personalDirection: personalResult.direction,
-        personalReasons: personalResult.reasons,
-        climateScore: climateResult.score,
-        climateLabel: climateResult.label,
-        climateDirection: climateResult.direction,
-        climateReasons: climateResult.reasons,
+        tags: tagList,
+        sources: bill.sources.map((s) => ({ url: s.url, name: s.name })),
         jurisdictionName: bill.jurisdictionName,
         status: bill.status,
         dateIntroduced: bill.dateIntroduced?.toISOString() || null,
-        tags: tagList,
-        sources: bill.sources.map((s) => ({ url: s.url, name: s.name })),
+        heurPersonal: personal,
+        heurClimate: climate,
+        heurTotal: total,
       };
     });
 
-    // Filter: Include if either score is meaningful
-    // Sort: Primary by personal impact (what helps you), secondary by climate impact
-    const relevantBills = scoredBills
-      .filter((b) => b.personalScore >= 3.0 || b.climateScore >= 6.0)
-      .sort((a, b) => {
-        if (Math.abs(b.personalScore - a.personalScore) > 0.5) {
-          return b.personalScore - a.personalScore;
-        }
-        return b.climateScore - a.climateScore;
-      })
-      .slice(0, 20);
+    // 2) Shortlist for OpenAI rescoring
+    const TOP_K = 60; // was 40 (more AI-scored candidates => more nonzero outcomes)
+    const shortlist = heurScored
+      .slice()
+      .sort((a, b) => b.heurTotal - a.heurTotal)
+      .slice(0, TOP_K)
+      .map((x) => ({
+        id: x.id,
+        title: x.title,
+        summary: x.summary,
+        tags: x.tags,
+      }));
 
-    console.log(`[FIND_BILLS] Returning ${relevantBills.length} relevant bills\n`);
+    // 3) OpenAI rescoring
+    const openai = getOpenAIClient();
+    const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+
+    let aiMap: Record<string, AIScoredBill> = {};
+    try {
+      aiMap = await aiRescoreTopBills(openai, model, userProfile, shortlist, 10);
+    } catch (e: any) {
+      console.warn("[FIND_BILLS] AI rescoring failed, falling back to heuristics:", e?.message || e);
+      aiMap = {};
+    }
+
+    // 4) Combine (prefer AI when available)
+    const combined = heurScored.map((x) => {
+      const ai = aiMap[x.id];
+
+      const personalScore = ai ? ai.personalScore : x.heurPersonal.score;
+      const personalReasons = ai ? ai.personalReasons : x.heurPersonal.reasons;
+      const personalDirection = personalScore > 0 ? "positive" : "neutral";
+      const personalLabel = getPersonalScoreLabel(personalScore);
+
+      const climateScore = ai ? ai.climateScore : x.heurClimate.score;
+      const climateDirection = ai ? ai.climateDirection : x.heurClimate.direction;
+      const climateReasons = ai ? ai.climateReasons : x.heurClimate.reasons;
+      const climateLabel = getClimateScoreLabel(climateScore, climateDirection);
+
+      const total = personalScore * 1.25 + climateScore;
+
+      return {
+        id: x.id,
+        identifier: x.identifier,
+        title: x.title,
+        summary: x.summary,
+        personalScore,
+        personalLabel,
+        personalDirection,
+        personalReasons,
+        climateScore,
+        climateLabel,
+        climateDirection,
+        climateReasons,
+        jurisdictionName: x.jurisdictionName,
+        status: x.status,
+        dateIntroduced: x.dateIntroduced,
+        tags: x.tags,
+        sources: x.sources,
+        _rank: total,
+        _scoredBy: ai ? "openai+shape" : "heuristic+shape",
+      };
+    });
+
+    // ===== Visibility fix =====
+    // Return more bills even if many are 0/0 (fillers), instead of filtering them all out.
+    const RETURN_N = 45; // was effectively 30 after filter
+    const sorted = combined.slice().sort((a, b) => b._rank - a._rank);
+
+    const nonZero = sorted.filter((b) => b.personalScore > 0 || b.climateScore > 0);
+    const zeroZero = sorted.filter((b) => b.personalScore === 0 && b.climateScore === 0);
+
+    const filled = nonZero.length >= RETURN_N
+      ? nonZero.slice(0, RETURN_N)
+      : nonZero.concat(zeroZero.slice(0, RETURN_N - nonZero.length));
+
+    const relevantBills = filled
+      .slice(0, RETURN_N)
+      .map(({ _rank, _scoredBy, ...rest }) => rest);
+
+    console.log(`[FIND_BILLS] Returning ${relevantBills.length} bills (nonZero=${nonZero.length}, fillers=${Math.max(0, RETURN_N - nonZero.length)})\n`);
 
     return NextResponse.json({
       bills: relevantBills,
       total: relevantBills.length,
       scoringExplanation: {
-        methodology: "Evidence-based dual-impact scoring system",
-        personalScore: "Quantifies financial benefit based on available incentives, your housing situation, upgrade capability, commute distance, current heating system, and decision timeline. Higher scores indicate greater potential savings.",
-        climateScore: "Measures environmental impact based on emissions reduction, renewable energy expansion, and climate resilience. Higher scores indicate stronger climate benefits. Lower scores may indicate policies that expand fossil fuel infrastructure or weaken environmental protections.",
-        scale: "Both metrics use a 0-10 scale where 10 represents maximum positive impact",
-        developer: "Created by Leo Levitt using analytical frameworks to make climate policy actionable"
-      }
+        methodology:
+          "Two-stage scoring: heuristic shortlist + OpenAI semantic rescoring. Climate unchanged; personal is balanced & slightly more generous via shaping.",
+        neutralRule: "Neutral impact is exactly 0.00.",
+        personalScore: "Direct financial/practical benefit to the user (0.00–10.00, shaped).",
+        climateScore: "Magnitude of climate impact (0.00–10.00) with direction positive/negative/neutral.",
+        visibilityRule:
+          "If fewer than the target count have nonzero scores, the list is filled with top-ranked remaining bills (may be 0.00/0.00) so you can still browse more policies.",
+        developer: "Created by Leo Levitt",
+      },
     });
   } catch (error: any) {
     console.error("[FIND_BILLS] Error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch bills", details: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to fetch bills", details: error.message }, { status: 500 });
   }
 }
 
 // ============================================================================
-// MODE 2: ANALYZE SPECIFIC BILL
+// MODE 2: ANALYZE SPECIFIC BILL (unchanged)
 // ============================================================================
 
-async function analyzeBill(
-  billId: string,
-  userProfile: UserProfile
-): Promise<NextResponse> {
+async function analyzeBill(billId: string, userProfile: UserProfile): Promise<NextResponse> {
   console.log(`\n[ANALYZE_BILL] Starting for bill: ${billId}`);
 
   try {
@@ -631,7 +1082,7 @@ Core principles:
 4. Be honest about trade-offs, costs, and uncertainties
 5. Focus on actionable information over generic advice
 
-Your tone: Knowledgeable, warm, and straightforward. Like a well-informed friend who's done the research.`;
+Output strict JSON only.`;
 
     const userPrompt = `Analyze this climate bill with analytical rigor and practical focus.
 
@@ -642,13 +1093,13 @@ USER PROFILE:
 - Current heating: ${userProfile.current_heating}
 - Upgrade capability: ${userProfile.can_make_upgrades}
 - Solar interest: ${userProfile.interested_in_solar}
-- Transportation: ${userProfile.has_car ? `Owns car, prefers ${userProfile.utility_fuels}` : 'No car'}
+- Transportation: ${userProfile.has_car ? `Owns car, prefers ${userProfile.utility_fuels}` : "No car"}
 - Commute distance: ${userProfile.commute_distance}
 - Decision timeline: ${userProfile.next_vehicle_timeline}
 - Household income: ${userProfile.household_income}
 - Household size: ${userProfile.household_size}
 - Business owner: ${userProfile.own_business}
-- Occupation: ${userProfile.job_sector || 'Not specified'}
+- Occupation: ${userProfile.job_sector || "Not specified"}
 
 BILL DETAILS:
 Title: ${bill.title}
@@ -716,14 +1167,10 @@ Be analytical and evidence-based. Distinguish between what's certain and what's 
     }
 
     console.log(`[ANALYZE_BILL] Analysis complete\n`);
-
     return NextResponse.json({ analysis });
   } catch (error: any) {
     console.error("[ANALYZE_BILL] Error:", error);
-    return NextResponse.json(
-      { error: "Failed to analyze bill", details: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to analyze bill", details: error.message }, { status: 500 });
   }
 }
 

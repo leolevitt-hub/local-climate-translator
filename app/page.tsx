@@ -932,7 +932,7 @@ function AboutSection() {
           </div>
         </div>
         <p className="text-xs text-white/50 italic">
-          All scoring methodologies are transparent and based on peer-reviewed climate science, energy economics, and policy analysis. 
+          All scoring methodologies are transparent.
           This tool processes your data locally and never stores personal information.
         </p>
       </div>
