@@ -274,7 +274,7 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
           fields: [
             {
               key: 'zip',
-              label: 'ZIP CODE',
+              label: 'Zip Code',
               type: 'input' as const,
               required: true,
               placeholder: '06511',
@@ -282,7 +282,7 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
             },
             {
               key: 'state',
-              label: 'STATE',
+              label: 'State',
               type: 'select' as const,
               required: false,
               options: [
@@ -299,42 +299,42 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
           fields: [
             {
               key: 'housing_status',
-              label: 'HOUSING STATUS',
+              label: 'Housing Status',
               type: 'select' as const,
               options: ['Renter', 'Owner', 'Other'].map(v => ({ value: v, label: v })),
               helper: undefined
             },
             {
               key: 'property_type',
-              label: 'PROPERTY TYPE',
+              label: 'Property Type',
               type: 'select' as const,
               options: ['Apartment', 'Single-family home', 'Multi-family home', 'Condo', 'Other'].map(v => ({ value: v, label: v })),
               helper: undefined
             },
             {
               key: 'can_make_upgrades',
-              label: 'CAN MAKE UPGRADES?',
+              label: 'Can make upgrades?',
               type: 'select' as const,
               options: ['Yes', 'No', 'Not sure'].map(v => ({ value: v, label: v })),
               helper: undefined
             },
             {
               key: 'home_age',
-              label: 'HOME AGE',
+              label: 'Home Age',
               type: 'select' as const,
               options: ['Not sure', 'Less than 10 years', '10-30 years', '30-50 years', 'More than 50 years'].map(v => ({ value: v, label: v })),
               helper: undefined
             },
             {
               key: 'current_heating',
-              label: 'CURRENT HEATING',
+              label: 'Current Heating',
               type: 'select' as const,
               options: ['Not sure', 'Natural gas', 'Oil', 'Electric resistance', 'Heat pump (already efficient!)', 'Propane'].map(v => ({ value: v, label: v })),
               helper: undefined
             },
             {
               key: 'interested_in_solar',
-              label: 'SOLAR INTEREST',
+              label: 'Solar Interest',
               type: 'select' as const,
               options: ['Maybe', 'Yes, very interested', 'No, not feasible', 'Already have solar'].map(v => ({ value: v, label: v })),
               helper: undefined
@@ -347,28 +347,28 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
           fields: [
             {
               key: 'has_car',
-              label: 'HAVE A CAR?',
+              label: 'Have a Car?',
               type: 'select' as const,
               options: ['Yes', 'No'].map(v => ({ value: v, label: v })),
               helper: undefined
             },
             {
               key: 'next_vehicle_timeline',
-              label: 'NEXT VEHICLE DECISION',
+              label: 'Next Vehicle Decision',
               type: 'select' as const,
               options: ['0-12 months', '1-3 years', '3-10 years', '10+ years'].map(v => ({ value: v, label: v })),
               helper: undefined
             },
             {
               key: 'utility_fuels',
-              label: 'VEHICLE PREFERENCE',
+              label: 'Vehicle Preference',
               type: 'select' as const,
               options: ['No preference', 'Electric only', 'Hybrid', 'Gas'].map(v => ({ value: v, label: v })),
               helper: undefined
             },
             {
               key: 'commute_distance',
-              label: 'COMMUTE DISTANCE',
+              label: 'Commute Distance',
               type: 'select' as const,
               options: ['Less than 10 miles', '10-25 miles', '25-50 miles', 'More than 50 miles', 'Work from home'].map(v => ({ value: v, label: v })),
               helper: undefined
@@ -381,21 +381,21 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
           fields: [
             {
               key: 'household_income',
-              label: 'HOUSEHOLD INCOME',
+              label: 'Household Income',
               type: 'select' as const,
               options: ['Prefer not to say', 'Under $50,000', '$50,000 - $100,000', '$100,000 - $150,000', 'Over $150,000'].map(v => ({ value: v, label: v })),
               helper: undefined
             },
             {
               key: 'household_size',
-              label: 'HOUSEHOLD SIZE',
+              label: 'Household Size',
               type: 'select' as const,
               options: ['1-2 people', '3-4 people', '5+ people'].map(v => ({ value: v, label: v })),
               helper: undefined
             },
             {
               key: 'own_business',
-              label: 'OWN BUSINESS?',
+              label: 'Own Business?',
               type: 'select' as const,
               options: ['No', 'Yes'].map(v => ({ value: v, label: v })),
               helper: undefined
@@ -408,7 +408,7 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
           fields: [
             {
               key: 'job_sector',
-              label: 'JOB / ROLE',
+              label: 'Job/Role',
               type: 'input' as const,
               required: false,
               placeholder: 'e.g., Student, Healthcare, Construction, Teacher',
@@ -427,7 +427,7 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
           <div className={`grid grid-cols-1 ${section.fields.length > 4 ? 'md:grid-cols-3' : section.fields.length > 2 ? 'md:grid-cols-2 lg:grid-cols-4' : 'md:grid-cols-2'} gap-6`}>
             {section.fields.map((field) => (
               <label key={field.key} className="group/field block space-y-3">
-                <span className="text-xs font-black text-white tracking-[0.1em] flex items-center gap-2">
+                <span className="text-sm font-black text-white tracking-[0.1em] flex items-center gap-2">
                   {field.label}
                   {field.type === 'input' && field.required && (
                     <span className="px-2 py-0.5 bg-gradient-to-r from-red-500/20 to-red-600/20 text-red-300 text-[9px] font-black rounded-md border border-red-500/30 animate-pulse">
@@ -949,8 +949,25 @@ export default function Page() {
         <div className="relative min-h-screen flex items-center justify-center p-6">
           <div className="w-full max-w-6xl relative z-9">
             {/* Enhanced header with premium design */}
-            <div className="mb-16 text-center space-y-4">
-               <div className="relative inline-block">
+            <div className="mb-16 text-center space-y-6">
+              {/* MOVED: Connecticut badge ABOVE title block + tuned spacing */}
+              <div className="flex justify-center">
+                <div className="inline-flex items-center gap-4 px-6 py-3 bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-transparent border border-blue-400/30 rounded-full backdrop-blur-xl shadow-lg shadow-blue-500/10">
+                  <div className="relative">
+                    <svg className="w-6 h-6 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    </svg>
+                    <div className="absolute inset-0 blur-lg opacity-50">
+                      <svg className="w-6 h-6 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      </svg>
+                    </div>
+                  </div>
+                  <span className="text-sm font-black text-blue-300 tracking-wider">CURRENTLY FOR CONNECTICUT RESIDENTS ONLY</span>
+                </div>
+              </div>
+
+              <div className="relative inline-block">
                 <h1 className="text-8xl font-black mb-6 bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 bg-clip-text text-transparent leading-[0.9] tracking-tighter filter drop-shadow-[0_0_30px_rgba(16,185,129,0.3)]">
                   CLIMATE<br/>IMPACT<br/>COMPASS
                 </h1>
@@ -958,24 +975,10 @@ export default function Page() {
                 <div className="absolute inset-0 bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 blur-3xl opacity-20 -z-10" />
               </div>
               
-             <p className="text-zinc-400 text-xl font-bold">
-    Evidence-based policy analysis tool by <span className="text-emerald-400">Leo Levitt</span>
-  </p>
-  
-  <div className="inline-flex items-center gap-4 px-6 py-3 bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-transparent border border-blue-400/30 rounded-full backdrop-blur-xl shadow-lg shadow-blue-500/10">
-    <div className="relative">
-      <svg className="w-6 h-6 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-      </svg>
-      <div className="absolute inset-0 blur-lg opacity-50">
-        <svg className="w-6 h-6 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-        </svg>
-      </div>
-    </div>
-    <span className="text-sm font-black text-blue-300 tracking-wider">CURRENTLY FOR CONNECTICUT RESIDENTS ONLY</span>
-  </div>
-</div>
+              <p className="text-zinc-400 text-xl font-bold">
+                Evidence-based policy analysis tool by <span className="text-emerald-400">Leo Levitt</span>
+              </p>
+            </div>
             
             <MissionStatement />
             
@@ -985,7 +988,7 @@ export default function Page() {
 
             <div className="mt-10 p-8 bg-gradient-to-br from-zinc-900/40 to-zinc-900/20 backdrop-blur-xl border border-zinc-800/30 rounded-3xl">
               <p className="text-sm text-zinc-500 text-center leading-relaxed">
-                <span className="font-black text-white">METHODOLOGY:</span> Dual-impact scoring measures both personal financial benefit and climate impact (including indirect effects like barrier removal and market acceleration). All analysis uses transparent AI frameworks with strict no-hallucination safeguards.
+                <span className="font-black text-white">METHODOLOGY:  </span> Dual-impact scoring measures both personal financial benefit and climate impact (including indirect effects like barrier removal and market acceleration). All analysis uses transparent AI frameworks with strict no-hallucination safeguards.
               </p>
             </div>
           </div>
