@@ -98,6 +98,76 @@ function GeometricPattern() {
   );
 }
 
+// Mission Statement Component
+function MissionStatement() {
+  return (
+    <div className="mb-12 relative">
+      {/* Accent Line */}
+      <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-emerald-400 via-teal-400 to-cyan-400 rounded-full" />
+      
+      <div className="pl-8 space-y-4">
+        {/* Main Mission */}
+        <div className="space-y-3">
+          <h2 className="text-2xl font-black text-white tracking-tight leading-tight">
+            OUR MISSION
+          </h2>
+          <p className="text-lg text-white/90 leading-relaxed max-w-4xl">
+            Climate action requires both <span className="font-black text-emerald-400">urgency</span> and{' '}
+            <span className="font-black text-teal-400">precision</span>. This tool hopes to bridge the gap between 
+            complex climate policy and actionable decisions by quantifying what matters most: 
+            the <span className="font-black text-emerald-400">financial impact on your life</span> and 
+            the <span className="font-black text-teal-400">measurable environmental benefit</span> to our planet.
+          </p>
+        </div>
+
+        {/* Key Principles */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
+          <div className="p-5 bg-zinc-900/50 border-2 border-emerald-500/20 rounded-xl">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-2 h-2 bg-emerald-400 rounded-full" />
+              <h3 className="text-sm font-black text-emerald-400 tracking-wide">EVIDENCE-BASED</h3>
+            </div>
+            <p className="text-sm text-zinc-400 leading-relaxed">
+              Every score derived from transparent AI analysis of actual bill text from the OpenStates policy database. No assumptions, no hallucinations.
+            </p>
+          </div>
+
+          <div className="p-5 bg-zinc-900/50 border-2 border-teal-500/20 rounded-xl">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-2 h-2 bg-teal-400 rounded-full" />
+              <h3 className="text-sm font-black text-teal-400 tracking-wide">PERSONALIZED</h3>
+            </div>
+            <p className="text-sm text-zinc-400 leading-relaxed">
+              Analysis tailored to YOUR specific situation: location, housing, income, and energy decisions.
+            </p>
+          </div>
+
+          <div className="p-5 bg-zinc-900/50 border-2 border-cyan-500/20 rounded-xl">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-2 h-2 bg-cyan-400 rounded-full" />
+              <h3 className="text-sm font-black text-cyan-400 tracking-wide">ACTIONABLE</h3>
+            </div>
+            <p className="text-sm text-zinc-400 leading-relaxed">
+              Not just information! Click on any of the bills in the list to view concrete next steps, eligibility criteria, and financial pathways.
+            </p>
+          </div>
+        </div>
+
+        {/* Creator Attribution */}
+        <div className="pt-4 border-t-2 border-zinc-800 flex items-center justify-between">
+          <p className="text-sm text-zinc-500">
+          </p>
+          <div className="flex gap-2">
+            <span className="px-3 py-1 bg-zinc-800 border border-zinc-700 rounded-full text-xs font-bold text-zinc-400">
+              OPEN-SOURCE
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Components
 function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfile) => void; loading: boolean }) {
   const [formData, setFormData] = useState<UserProfile>({
@@ -142,15 +212,6 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
               both your <span className="font-bold text-emerald-300">personal financial benefit</span> and the <span className="font-bold text-teal-300">climate impact</span> of each policy.
             </p>
             <div className="flex flex-wrap gap-2">
-              <span className="px-3 py-1.5 bg-emerald-400/20 text-emerald-300 text-xs font-bold rounded-full border border-emerald-400/30">
-                AI-Powered
-              </span>
-              <span className="px-3 py-1.5 bg-teal-400/20 text-teal-300 text-xs font-bold rounded-full border border-teal-400/30">
-                Location-Specific
-              </span>
-              <span className="px-3 py-1.5 bg-cyan-400/20 text-cyan-300 text-xs font-bold rounded-full border border-cyan-400/30">
-                No Hallucination
-              </span>
             </div>
           </div>
         </div>
@@ -748,7 +809,7 @@ export default function Page() {
                 <svg className="w-5 h-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                 </svg>
-                <span className="text-sm font-black text-blue-300 tracking-wide">CONNECTICUT ONLY</span>
+                <span className="text-sm font-black text-blue-300 tracking-wide">CURRENTLY FOR CONNECTICUT RESIDENTS ONLY</span>
               </div>
               
               <h1 className="text-7xl font-black mb-6 bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 bg-clip-text text-transparent leading-none tracking-tighter">
@@ -756,9 +817,12 @@ export default function Page() {
               </h1>
               
               <p className="text-zinc-400 text-lg mb-3 font-bold">
-                Evidence-based policy analysis by <span className="text-emerald-400">Leo Levitt</span>
+                Evidence-based policy analysis tool by <span className="text-emerald-400">Leo Levitt</span>
               </p>
             </div>
+            
+            {/* Mission Statement */}
+            <MissionStatement />
             
             <div className="p-10 bg-zinc-900/50 border-2 border-zinc-800 rounded-3xl backdrop-blur-xl">
               <UserProfileForm onSubmit={handleSubmit} loading={loading} />
