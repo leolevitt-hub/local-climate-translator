@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState } from "react";
 
 // Types matching enhanced backend
 type UserProfile = {
@@ -104,7 +104,7 @@ function MissionStatement() {
     <div className="mb-12 relative">
       {/* Accent Line */}
       <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-emerald-400 via-teal-400 to-cyan-400 rounded-full" />
-      
+
       <div className="pl-8 space-y-4">
         {/* Main Mission */}
         <div className="space-y-3">
@@ -112,11 +112,19 @@ function MissionStatement() {
             OUR MISSION
           </h2>
           <p className="text-lg text-white/90 leading-relaxed max-w-4xl">
-            Climate action requires both <span className="font-black text-emerald-400">urgency</span> and{' '}
-            <span className="font-black text-teal-400">precision</span>. This tool hopes to bridge the gap between 
-            complex climate policy and actionable decisions by quantifying what matters most: 
-            the <span className="font-black text-emerald-400">financial impact on your life</span> and 
-            the <span className="font-black text-teal-400">measurable environmental benefit</span> to our planet.
+            Climate action requires both{" "}
+            <span className="font-black text-emerald-400">urgency</span> and{" "}
+            <span className="font-black text-teal-400">precision</span>. This tool hopes
+            to bridge the gap between complex climate policy and actionable decisions by
+            quantifying what matters most: the{" "}
+            <span className="font-black text-emerald-400">
+              financial impact on your life
+            </span>{" "}
+            and the{" "}
+            <span className="font-black text-teal-400">
+              measurable environmental benefit
+            </span>{" "}
+            to our planet.
           </p>
         </div>
 
@@ -125,10 +133,13 @@ function MissionStatement() {
           <div className="p-5 bg-zinc-900/50 border-2 border-emerald-500/20 rounded-xl">
             <div className="flex items-center gap-3 mb-2">
               <div className="w-2 h-2 bg-emerald-400 rounded-full" />
-              <h3 className="text-sm font-black text-emerald-400 tracking-wide">EVIDENCE-BASED</h3>
+              <h3 className="text-sm font-black text-emerald-400 tracking-wide">
+                EVIDENCE-BASED
+              </h3>
             </div>
             <p className="text-sm text-zinc-400 leading-relaxed">
-              Every score derived from transparent AI analysis of actual bill text from the OpenStates policy database. No assumptions, no hallucinations.
+              Every score derived from transparent AI analysis of actual bill text from the
+              OpenStates policy database. No assumptions, no hallucinations.
             </p>
           </div>
 
@@ -138,7 +149,8 @@ function MissionStatement() {
               <h3 className="text-sm font-black text-teal-400 tracking-wide">PERSONALIZED</h3>
             </div>
             <p className="text-sm text-zinc-400 leading-relaxed">
-              Analysis tailored to YOUR specific situation: location, housing, income, and energy decisions.
+              Analysis tailored to YOUR specific situation: location, housing, income, and
+              energy decisions.
             </p>
           </div>
 
@@ -148,15 +160,15 @@ function MissionStatement() {
               <h3 className="text-sm font-black text-cyan-400 tracking-wide">ACTIONABLE</h3>
             </div>
             <p className="text-sm text-zinc-400 leading-relaxed">
-              Not just information! Click on any of the bills in the list to view concrete next steps, eligibility criteria, and financial pathways.
+              Not just information! Click on any of the bills in the list to view concrete
+              next steps, eligibility criteria, and financial pathways.
             </p>
           </div>
         </div>
 
         {/* Creator Attribution */}
         <div className="pt-4 border-t-2 border-zinc-800 flex items-center justify-between">
-          <p className="text-sm text-zinc-500">
-          </p>
+          <p className="text-sm text-zinc-500"></p>
           <div className="flex gap-2">
             <span className="px-3 py-1 bg-zinc-800 border border-zinc-700 rounded-full text-xs font-bold text-zinc-400">
               OPEN-SOURCE
@@ -169,24 +181,30 @@ function MissionStatement() {
 }
 
 // Components
-function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfile) => void; loading: boolean }) {
+function UserProfileForm({
+  onSubmit,
+  loading,
+}: {
+  onSubmit: (profile: UserProfile) => void;
+  loading: boolean;
+}) {
   const [formData, setFormData] = useState<UserProfile>({
-    zip: '',
-    state: 'CT',
-    housing_status: 'Renter',
-    property_type: 'Apartment',
-    can_make_upgrades: 'Not sure',
-    has_car: 'Yes',
-    next_vehicle_timeline: '1-3 years',
-    utility_fuels: 'No preference',
-    job_sector: '',
-    household_income: 'Prefer not to say',
-    household_size: '1-2 people',
-    commute_distance: 'Less than 10 miles',
-    home_age: 'Not sure',
-    current_heating: 'Not sure',
-    interested_in_solar: 'Maybe',
-    own_business: 'No',
+    zip: "",
+    state: "CT",
+    housing_status: "Renter",
+    property_type: "Apartment",
+    can_make_upgrades: "Not sure",
+    has_car: "Yes",
+    next_vehicle_timeline: "1-3 years",
+    utility_fuels: "No preference",
+    job_sector: "",
+    household_income: "Prefer not to say",
+    household_size: "1-2 people",
+    commute_distance: "Less than 10 miles",
+    home_age: "Not sure",
+    current_heating: "Not sure",
+    interested_in_solar: "Maybe",
+    own_business: "No",
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -201,18 +219,33 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
         <div className="absolute -left-1 top-8 bottom-8 w-1 bg-gradient-to-b from-emerald-400 to-teal-500" />
         <div className="flex items-start gap-6">
           <div className="shrink-0 w-16 h-16 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl flex items-center justify-center transform -rotate-3">
-            <svg className="w-8 h-8 text-zinc-950" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <svg
+              className="w-8 h-8 text-zinc-950"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
             </svg>
           </div>
           <div className="flex-1">
-            <h3 className="text-2xl font-black text-white mb-3 tracking-tight">Evidence-Based Policy Analysis</h3>
+            <h3 className="text-2xl font-black text-white mb-3 tracking-tight">
+              Evidence-Based Policy Analysis
+            </h3>
             <p className="text-base text-white/85 leading-relaxed mb-4">
-              Complete this profile to receive <span className="font-bold text-emerald-300">dual-impact scores</span> showing 
-              both your <span className="font-bold text-emerald-300">personal financial benefit</span> and the <span className="font-bold text-teal-300">climate impact</span> of each policy.
+              Complete this profile to receive{" "}
+              <span className="font-bold text-emerald-300">dual-impact scores</span>{" "}
+              showing both your{" "}
+              <span className="font-bold text-emerald-300">personal financial benefit</span>{" "}
+              and the{" "}
+              <span className="font-bold text-teal-300">climate impact</span> of each policy.
             </p>
-            <div className="flex flex-wrap gap-2">
-            </div>
+            <div className="flex flex-wrap gap-2"></div>
           </div>
         </div>
       </div>
@@ -227,7 +260,9 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
           <label className="block space-y-2.5">
             <span className="text-sm font-bold text-white tracking-wide flex items-center gap-2">
               ZIP CODE
-              <span className="px-2 py-0.5 bg-red-500/20 text-red-300 text-[10px] font-black rounded border border-red-500/30">REQUIRED</span>
+              <span className="px-2 py-0.5 bg-red-500/20 text-red-300 text-[10px] font-black rounded border border-red-500/30">
+                REQUIRED
+              </span>
             </span>
             <input
               type="text"
@@ -247,8 +282,12 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
               onChange={(e) => setFormData({ ...formData, state: e.target.value })}
               className="w-full px-5 py-4 bg-zinc-900/50 border-2 border-zinc-700/50 rounded-xl text-white focus:outline-none focus:border-teal-400 focus:bg-zinc-900 transition-all appearance-none cursor-pointer font-medium"
             >
-              <option value="CT" className="bg-zinc-900">Connecticut</option>
-              <option value="CA" className="bg-zinc-900 text-zinc-500">California (Coming Soon)</option>
+              <option value="CT" className="bg-zinc-900">
+                Connecticut
+              </option>
+              <option value="CA" className="bg-zinc-900 text-zinc-500">
+                California (Coming Soon)
+              </option>
             </select>
             <p className="text-xs text-zinc-500">Currently analyzing CT policies</p>
           </label>
@@ -263,12 +302,28 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
         </legend>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {[
-            { key: 'housing_status', label: 'Housing Status', options: ['Renter', 'Owner', 'Other'] },
-            { key: 'property_type', label: 'Property Type', options: ['Apartment', 'Single-family home', 'Multi-family home', 'Condo', 'Other'] },
-            { key: 'can_make_upgrades', label: 'Can Make Upgrades?', options: ['Yes', 'No', 'Not sure'] },
-            { key: 'home_age', label: 'Home Age', options: ['Not sure', 'Less than 10 years', '10-30 years', '30-50 years', 'More than 50 years'] },
-            { key: 'current_heating', label: 'Current Heating', options: ['Not sure', 'Natural gas', 'Oil', 'Electric resistance', 'Heat pump (already efficient!)', 'Propane'] },
-            { key: 'interested_in_solar', label: 'Solar Interest', options: ['Maybe', 'Yes, very interested', 'No, not feasible', 'Already have solar'] },
+            { key: "housing_status", label: "Housing Status", options: ["Renter", "Owner", "Other"] },
+            {
+              key: "property_type",
+              label: "Property Type",
+              options: ["Apartment", "Single-family home", "Multi-family home", "Condo", "Other"],
+            },
+            { key: "can_make_upgrades", label: "Can Make Upgrades?", options: ["Yes", "No", "Not sure"] },
+            {
+              key: "home_age",
+              label: "Home Age",
+              options: ["Not sure", "Less than 10 years", "10-30 years", "30-50 years", "More than 50 years"],
+            },
+            {
+              key: "current_heating",
+              label: "Current Heating",
+              options: ["Not sure", "Natural gas", "Oil", "Electric resistance", "Heat pump (already efficient!)", "Propane"],
+            },
+            {
+              key: "interested_in_solar",
+              label: "Solar Interest",
+              options: ["Maybe", "Yes, very interested", "No, not feasible", "Already have solar"],
+            },
           ].map((field) => (
             <label key={field.key} className="block space-y-2.5">
               <span className="text-sm font-bold text-white tracking-wide">{field.label.toUpperCase()}</span>
@@ -277,8 +332,10 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
                 onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
                 className="w-full px-5 py-4 bg-zinc-900/50 border-2 border-zinc-700/50 rounded-xl text-white focus:outline-none focus:border-teal-400 focus:bg-zinc-900 transition-all appearance-none cursor-pointer font-medium"
               >
-                {field.options.map(opt => (
-                  <option key={opt} value={opt} className="bg-zinc-900">{opt}</option>
+                {field.options.map((opt) => (
+                  <option key={opt} value={opt} className="bg-zinc-900">
+                    {opt}
+                  </option>
                 ))}
               </select>
             </label>
@@ -294,10 +351,10 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
         </legend>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {[
-            { key: 'has_car', label: 'Have a Car?', options: ['Yes', 'No'] },
-            { key: 'next_vehicle_timeline', label: 'Next Vehicle Decision', options: ['0-12 months', '1-3 years', '3-10 years', '10+ years'] },
-            { key: 'utility_fuels', label: 'Vehicle Preference', options: ['No preference', 'Electric only', 'Hybrid', 'Gas'] },
-            { key: 'commute_distance', label: 'Commute Distance', options: ['Less than 10 miles', '10-25 miles', '25-50 miles', 'More than 50 miles', 'Work from home'] },
+            { key: "has_car", label: "Have a Car?", options: ["Yes", "No"] },
+            { key: "next_vehicle_timeline", label: "Next Vehicle Decision", options: ["0-12 months", "1-3 years", "3-10 years", "10+ years"] },
+            { key: "utility_fuels", label: "Vehicle Preference", options: ["No preference", "Electric only", "Hybrid", "Gas"] },
+            { key: "commute_distance", label: "Commute Distance", options: ["Less than 10 miles", "10-25 miles", "25-50 miles", "More than 50 miles", "Work from home"] },
           ].map((field) => (
             <label key={field.key} className="block space-y-2.5">
               <span className="text-sm font-bold text-white tracking-wide">{field.label.toUpperCase()}</span>
@@ -306,8 +363,10 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
                 onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
                 className="w-full px-5 py-4 bg-zinc-900/50 border-2 border-zinc-700/50 rounded-xl text-white focus:outline-none focus:border-cyan-400 focus:bg-zinc-900 transition-all appearance-none cursor-pointer font-medium"
               >
-                {field.options.map(opt => (
-                  <option key={opt} value={opt} className="bg-zinc-900">{opt}</option>
+                {field.options.map((opt) => (
+                  <option key={opt} value={opt} className="bg-zinc-900">
+                    {opt}
+                  </option>
                 ))}
               </select>
             </label>
@@ -323,9 +382,13 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
         </legend>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {[
-            { key: 'household_income', label: 'Household Income', options: ['Prefer not to say', 'Under $50,000', '$50,000 - $100,000', '$100,000 - $150,000', 'Over $150,000'] },
-            { key: 'household_size', label: 'Household Size', options: ['1-2 people', '3-4 people', '5+ people'] },
-            { key: 'own_business', label: 'Own Business?', options: ['No', 'Yes'] },
+            {
+              key: "household_income",
+              label: "Household Income",
+              options: ["Prefer not to say", "Under $50,000", "$50,000 - $100,000", "$100,000 - $150,000", "Over $150,000"],
+            },
+            { key: "household_size", label: "Household Size", options: ["1-2 people", "3-4 people", "5+ people"] },
+            { key: "own_business", label: "Own Business?", options: ["No", "Yes"] },
           ].map((field) => (
             <label key={field.key} className="block space-y-2.5">
               <span className="text-sm font-bold text-white tracking-wide">{field.label.toUpperCase()}</span>
@@ -334,8 +397,10 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
                 onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
                 className="w-full px-5 py-4 bg-zinc-900/50 border-2 border-zinc-700/50 rounded-xl text-white focus:outline-none focus:border-emerald-400 focus:bg-zinc-900 transition-all appearance-none cursor-pointer font-medium"
               >
-                {field.options.map(opt => (
-                  <option key={opt} value={opt} className="bg-zinc-900">{opt}</option>
+                {field.options.map((opt) => (
+                  <option key={opt} value={opt} className="bg-zinc-900">
+                    {opt}
+                  </option>
                 ))}
               </select>
             </label>
@@ -386,27 +451,51 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
         </div>
       </button>
 
-      <p className="text-center text-xs text-zinc-500">
-        🔒 Data processed locally • Never stored • Fully transparent methodology
-      </p>
+      <p className="text-center text-xs text-zinc-500">🔒 Data processed locally • Never stored • Fully transparent methodology</p>
     </form>
   );
 }
 
-function ScoreMeter({ score, label, color, direction }: { score: number; label: string; color: string; direction: string }) {
+/** NEW: compact 2–3 word descriptors for list view */
+function describePersonal(score: number) {
+  if (score <= 0.1) return "No personal benefit";
+  if (score < 3) return "Low personal benefit";
+  if (score < 6) return "Moderate personal benefit";
+  if (score < 8) return "Strong personal benefit";
+  return "Very strong benefit";
+}
+function describeClimate(score: number, direction: string) {
+  if (direction === "neutral") return "Climate neutral";
+  const intensity =
+    score < 3 ? "Low" : score < 6 ? "Moderate" : score < 8 ? "Strong" : "Very strong";
+  return direction === "negative"
+    ? `${intensity} climate harm`
+    : `${intensity} climate benefit`;
+}
+
+function ScoreMeter({
+  score,
+  label,
+  color,
+  direction,
+  descriptor,
+}: {
+  score: number;
+  label: string;
+  color: string;
+  direction: string;
+  descriptor?: string;
+}) {
   const percentage = (score / 10) * 100;
-  
+
   const colorMap: Record<string, { gradient: string; text: string; shadow: string }> = {
-    personal: { gradient: 'from-emerald-400 to-emerald-500', text: 'text-emerald-400', shadow: 'shadow-emerald-500/40' },
-    'climate-positive': { gradient: 'from-teal-400 to-cyan-500', text: 'text-teal-400', shadow: 'shadow-teal-500/40' },
-    'climate-negative': { gradient: 'from-red-400 to-orange-500', text: 'text-red-400', shadow: 'shadow-red-500/40' },
-    'climate-neutral': { gradient: 'from-zinc-400 to-zinc-500', text: 'text-zinc-400', shadow: 'shadow-zinc-500/40' },
+    personal: { gradient: "from-emerald-400 to-emerald-500", text: "text-emerald-400", shadow: "shadow-emerald-500/40" },
+    "climate-positive": { gradient: "from-teal-400 to-cyan-500", text: "text-teal-400", shadow: "shadow-teal-500/40" },
+    "climate-negative": { gradient: "from-red-400 to-orange-500", text: "text-red-400", shadow: "shadow-red-500/40" },
+    "climate-neutral": { gradient: "from-zinc-400 to-zinc-500", text: "text-zinc-400", shadow: "shadow-zinc-500/40" },
   };
 
-  const colorKey = color === 'climate' 
-    ? `climate-${direction}` 
-    : 'personal';
-  
+  const colorKey = color === "climate" ? `climate-${direction}` : "personal";
   const colors = colorMap[colorKey] || colorMap.personal;
 
   return (
@@ -427,8 +516,8 @@ function ScoreMeter({ score, label, color, direction }: { score: number; label: 
           />
           <defs>
             <linearGradient id="gradient" x1="0%" y1="0%" x2="100%">
-              <stop offset="0%" className={colors.gradient.split(' ')[0].replace('from-', 'text-')} stopColor="currentColor" />
-              <stop offset="100%" className={colors.gradient.split(' ')[1].replace('to-', 'text-')} stopColor="currentColor" />
+              <stop offset="0%" className={colors.gradient.split(" ")[0].replace("from-", "text-")} stopColor="currentColor" />
+              <stop offset="100%" className={colors.gradient.split(" ")[1].replace("to-", "text-")} stopColor="currentColor" />
             </linearGradient>
           </defs>
         </svg>
@@ -438,6 +527,8 @@ function ScoreMeter({ score, label, color, direction }: { score: number; label: 
       </div>
       <div>
         <div className="text-sm font-black text-white tracking-wide">{label.toUpperCase()}</div>
+        {/* NEW: short descriptor next to each metric in the bill list (optional everywhere else) */}
+        {descriptor ? <div className="text-xs text-zinc-300 font-black tracking-wide">{descriptor}</div> : null}
         <div className="text-xs text-zinc-500 font-bold">0-10 SCALE</div>
       </div>
     </div>
@@ -446,24 +537,21 @@ function ScoreMeter({ score, label, color, direction }: { score: number; label: 
 
 function BillCard({ bill, onClick }: { bill: Bill; onClick: () => void }) {
   const statusStyles: Record<string, string> = {
-    passed: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50',
-    enacted: 'bg-blue-500/20 text-blue-300 border-blue-500/50',
-    proposed: 'bg-amber-500/20 text-amber-300 border-amber-500/50',
-    vetoed: 'bg-red-500/20 text-red-300 border-red-500/50'
+    passed: "bg-emerald-500/20 text-emerald-300 border-emerald-500/50",
+    enacted: "bg-blue-500/20 text-blue-300 border-blue-500/50",
+    proposed: "bg-amber-500/20 text-amber-300 border-amber-500/50",
+    vetoed: "bg-red-500/20 text-red-300 border-red-500/50",
   };
 
   const getCardBorder = () => {
-    if (bill.personalScore >= 7 && bill.climateScore >= 7) return 'border-emerald-400/60 bg-emerald-500/5';
-    if (bill.climateDirection === 'negative') return 'border-red-500/50 bg-red-500/5';
-    if (bill.personalScore >= 6) return 'border-emerald-500/40 bg-emerald-500/5';
-    return 'border-zinc-700/50 bg-zinc-900/30';
+    if (bill.personalScore >= 7 && bill.climateScore >= 7) return "border-emerald-400/60 bg-emerald-500/5";
+    if (bill.climateDirection === "negative") return "border-red-500/50 bg-red-500/5";
+    if (bill.personalScore >= 6) return "border-emerald-500/40 bg-emerald-500/5";
+    return "border-zinc-700/50 bg-zinc-900/30";
   };
 
   return (
-    <button
-      onClick={onClick}
-      className={`group w-full text-left p-8 border-2 rounded-2xl hover:border-emerald-400/70 hover:bg-zinc-900/50 transition-all ${getCardBorder()}`}
-    >
+    <button onClick={onClick} className={`group w-full text-left p-8 border-2 rounded-2xl hover:border-emerald-400/70 hover:bg-zinc-900/50 transition-all ${getCardBorder()}`}>
       <div className="flex items-start justify-between gap-8 mb-6">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 mb-4 flex-wrap">
@@ -479,13 +567,13 @@ function BillCard({ bill, onClick }: { bill: Bill; onClick: () => void }) {
               </span>
             )}
           </div>
-          
+
           <h3 className="text-2xl font-black text-white mb-4 group-hover:text-emerald-400 transition-colors leading-tight">
             {bill.title}
           </h3>
-          
+
           <p className="text-sm text-zinc-400 line-clamp-2 mb-6 leading-relaxed">{bill.summary}</p>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {bill.personalReasons.length > 0 && (
               <div className="space-y-2">
@@ -498,21 +586,33 @@ function BillCard({ bill, onClick }: { bill: Bill; onClick: () => void }) {
                 ))}
               </div>
             )}
-            
+
             {bill.climateReasons.length > 0 && (
               <div className="space-y-2">
-                <div className={`font-black text-sm mb-3 tracking-wide ${
-                  bill.climateDirection === 'positive' ? 'text-teal-400' :
-                  bill.climateDirection === 'negative' ? 'text-red-400' : 'text-zinc-400'
-                }`}>
+                <div
+                  className={`font-black text-sm mb-3 tracking-wide ${
+                    bill.climateDirection === "positive"
+                      ? "text-teal-400"
+                      : bill.climateDirection === "negative"
+                      ? "text-red-400"
+                      : "text-zinc-400"
+                  }`}
+                >
                   🌍 FOR CLIMATE
                 </div>
                 {bill.climateReasons.map((reason, i) => (
                   <div key={i} className="flex items-start gap-2 text-sm text-zinc-300">
-                    <span className={`font-bold mt-0.5 ${
-                      bill.climateDirection === 'positive' ? 'text-teal-400' :
-                      bill.climateDirection === 'negative' ? 'text-red-400' : 'text-zinc-400'
-                    }`}>→</span>
+                    <span
+                      className={`font-bold mt-0.5 ${
+                        bill.climateDirection === "positive"
+                          ? "text-teal-400"
+                          : bill.climateDirection === "negative"
+                          ? "text-red-400"
+                          : "text-zinc-400"
+                      }`}
+                    >
+                      →
+                    </span>
                     <span>{reason}</span>
                   </div>
                 ))}
@@ -520,10 +620,23 @@ function BillCard({ bill, onClick }: { bill: Bill; onClick: () => void }) {
             )}
           </div>
         </div>
-        
+
         <div className="shrink-0 space-y-6">
-          <ScoreMeter score={bill.personalScore} label="Personal" color="personal" direction={bill.personalDirection} />
-          <ScoreMeter score={bill.climateScore} label="Climate" color="climate" direction={bill.climateDirection} />
+          {/* NEW: 2–3 word descriptors shown next to each metric in the bill list */}
+          <ScoreMeter
+            score={bill.personalScore}
+            label="Personal"
+            color="personal"
+            direction={bill.personalDirection}
+            descriptor={describePersonal(bill.personalScore)}
+          />
+          <ScoreMeter
+            score={bill.climateScore}
+            label="Climate"
+            color="climate"
+            direction={bill.climateDirection}
+            descriptor={describeClimate(bill.climateScore, bill.climateDirection)}
+          />
         </div>
       </div>
 
@@ -556,25 +669,25 @@ function BillDetailModal({ bill, onClose, userProfile }: { bill: Bill; onClose: 
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch('/api/analyze', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        const response = await fetch("/api/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             ...userProfile,
-            mode: 'analyze_bill',
-            billId: bill.id
-          })
+            mode: "analyze_bill",
+            billId: bill.id,
+          }),
         });
 
         const data = await response.json();
 
         if (!response.ok) {
-          throw new Error(data.error || data.details || 'Failed to analyze bill');
+          throw new Error(data.error || data.details || "Failed to analyze bill");
         }
 
         setAnalysis(data.analysis);
       } catch (error: any) {
-        setError(error.message || 'Failed to analyze bill');
+        setError(error.message || "Failed to analyze bill");
       } finally {
         setLoading(false);
       }
@@ -601,16 +714,13 @@ function BillDetailModal({ bill, onClose, userProfile }: { bill: Bill; onClose: 
               <h2 className="text-3xl font-black text-white leading-tight mb-2">{bill.title}</h2>
               <p className="text-sm font-bold text-zinc-500">{bill.jurisdictionName}</p>
             </div>
-            <button 
-              onClick={onClose} 
-              className="p-3 hover:bg-zinc-800 rounded-xl transition-colors"
-            >
+            <button onClick={onClose} className="p-3 hover:bg-zinc-800 rounded-xl transition-colors">
               <svg className="w-6 h-6 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
-          
+
           <div className="flex gap-8 p-6 bg-zinc-900/50 border-2 border-zinc-800 rounded-2xl">
             <ScoreMeter score={bill.personalScore} label="Personal" color="personal" direction={bill.personalDirection} />
             <ScoreMeter score={bill.climateScore} label="Climate" color="climate" direction={bill.climateDirection} />
@@ -636,10 +746,7 @@ function BillDetailModal({ bill, onClose, userProfile }: { bill: Bill; onClose: 
                 </svg>
               </div>
               <p className="text-red-400 font-bold mb-4">{error}</p>
-              <button 
-                onClick={onClose}
-                className="px-6 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl transition font-bold"
-              >
+              <button onClick={onClose} className="px-6 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl transition font-bold">
                 CLOSE
               </button>
             </div>
@@ -764,7 +871,7 @@ function BillDetailModal({ bill, onClose, userProfile }: { bill: Bill; onClose: 
 }
 
 export default function Page() {
-  const [step, setStep] = useState<'form' | 'results'>('form');
+  const [step, setStep] = useState<"form" | "results">("form");
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [bills, setBills] = useState<Bill[]>([]);
   const [loading, setLoading] = useState(false);
@@ -773,22 +880,22 @@ export default function Page() {
   async function handleSubmit(profile: UserProfile) {
     setLoading(true);
     setUserProfile(profile);
-    
+
     try {
-      const response = await fetch('/api/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...profile, mode: 'find_bills' })
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...profile, mode: "find_bills" }),
       });
-      
+
       const data = await response.json();
-      
+
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch bills');
+        throw new Error(data.error || "Failed to fetch bills");
       }
-      
+
       setBills(data.bills || []);
-      setStep('results');
+      setStep("results");
     } catch (error: any) {
       alert(`Error: ${error.message}`);
     } finally {
@@ -799,8 +906,8 @@ export default function Page() {
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
       <GeometricPattern />
-      
-      {step === 'form' ? (
+
+      {step === "form" ? (
         <div className="relative min-h-screen flex items-center justify-center p-6">
           <div className="w-full max-w-5xl">
             {/* Header */}
@@ -811,19 +918,21 @@ export default function Page() {
                 </svg>
                 <span className="text-sm font-black text-blue-300 tracking-wide">CURRENTLY FOR CONNECTICUT RESIDENTS ONLY</span>
               </div>
-              
+
               <h1 className="text-7xl font-black mb-6 bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 bg-clip-text text-transparent leading-none tracking-tighter">
-                CLIMATE<br/>IMPACT<br/>COMPASS
+                CLIMATE<br />
+                IMPACT<br />
+                COMPASS
               </h1>
-              
+
               <p className="text-zinc-400 text-lg mb-3 font-bold">
                 Evidence-based policy analysis tool by <span className="text-emerald-400">Leo Levitt</span>
               </p>
             </div>
-            
+
             {/* Mission Statement */}
             <MissionStatement />
-            
+
             <div className="p-10 bg-zinc-900/50 border-2 border-zinc-800 rounded-3xl backdrop-blur-xl">
               <UserProfileForm onSubmit={handleSubmit} loading={loading} />
             </div>
@@ -841,16 +950,17 @@ export default function Page() {
             <div className="mb-10">
               <div className="flex items-center justify-between mb-8">
                 <div>
-                  <h1 className="text-5xl font-black text-white mb-3 tracking-tight">
-                    YOUR POLICIES
-                  </h1>
+                  <h1 className="text-5xl font-black text-white mb-3 tracking-tight">YOUR POLICIES</h1>
                   <p className="text-zinc-500 text-lg font-bold">
-                    {bills.length} {bills.length === 1 ? 'policy' : 'policies'} • Sorted by impact
+                    {bills.length} {bills.length === 1 ? "policy" : "policies"} • Sorted by impact
                   </p>
                 </div>
-                
+
                 <button
-                  onClick={() => { setStep('form'); setSelectedBill(null); }}
+                  onClick={() => {
+                    setStep("form");
+                    setSelectedBill(null);
+                  }}
                   className="px-6 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl transition font-black border-2 border-zinc-700"
                 >
                   ← CHANGE PROFILE
@@ -859,9 +969,7 @@ export default function Page() {
 
               <div className="p-6 bg-zinc-900/50 border-2 border-zinc-800 rounded-2xl">
                 <p className="text-sm text-zinc-400">
-                  <span className="font-black text-white">SCORING:</span> Personal impact measures YOUR financial benefit. 
-                  Climate impact now recognizes indirect benefits (barrier removal, market acceleration, workforce development) 
-                  in addition to direct emissions reductions.
+                  <span className="font-black text-white">SCORING:</span> Personal impact measures YOUR financial benefit. Climate impact now recognizes indirect benefits (barrier removal, market acceleration, workforce development) in addition to direct emissions reductions.
                 </p>
               </div>
             </div>
