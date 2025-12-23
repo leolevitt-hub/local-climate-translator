@@ -874,7 +874,7 @@ export default function Page() {
               </div>
             ) : (
               <div className="text-center py-20">
-                <p className="text-zinc-499 text-lg font-bold">No policies found for your profile</p>
+                <p className="text-zinc-500 text-lg font-bold">No policies found for your profile</p>
               </div>
             )}
           </div>
