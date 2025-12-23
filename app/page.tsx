@@ -44,30 +44,13 @@ type Bill = {
 
 type Analysis = {
   plain_english_summary: string;
-  personal_benefits?: string[];
-  climate_benefits?: string[];
-  potential_downsides?: string[];
-  actions: {
-    do_now: string[];
-    do_later: string[];
-    ignore_for_now: string[];
-  };
-  who_qualifies?: string[];
-  money_details?: {
-    upfront_costs: string[];
-    monthly_savings: string[];
-    payback_timeline: string[];
-    available_help: string[];
-  };
-  climate_details?: {
-    emissions_impact: string[];
-    clean_energy_added: string[];
-    resilience_benefits: string[];
-  };
-  next_steps?: string[];
-  local_checks?: string[];
-  open_questions?: string[];
-  questions_for_pros?: string[];
+  financial_impacts: string[];
+  environmental_impacts: string[];
+  who_qualifies: string[];
+  certainties: string[];
+  uncertainties: string[];
+  action_steps: string[];
+  questions_to_ask: string[];
 };
 
 // Components
@@ -670,11 +653,14 @@ function BillCard({ bill, onClick }: { bill: Bill; onClick: () => void }) {
 function BillDetailModal({ bill, onClose, userProfile }: { bill: Bill; onClose: () => void; userProfile: UserProfile }) {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   React.useEffect(() => {
     async function analyze() {
       setLoading(true);
+      setError(null);
       try {
+        console.log('Analyzing bill:', bill.id);
         const response = await fetch('/api/analyze', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -685,12 +671,17 @@ function BillDetailModal({ bill, onClose, userProfile }: { bill: Bill; onClose: 
           })
         });
 
-        if (!response.ok) throw new Error('Failed');
-
         const data = await response.json();
+        console.log('Analysis response:', data);
+
+        if (!response.ok) {
+          throw new Error(data.error || data.details || 'Failed to analyze bill');
+        }
+
         setAnalysis(data.analysis);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Analysis failed:', error);
+        setError(error.message || 'Failed to analyze bill');
       } finally {
         setLoading(false);
       }
@@ -734,6 +725,21 @@ function BillDetailModal({ bill, onClose, userProfile }: { bill: Bill; onClose: 
               <p className="text-white/60 text-sm font-medium">Analyzing policy impact with AI...</p>
               <p className="text-white/40 text-xs mt-1">Quantifying financial & environmental benefits</p>
             </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mb-4">
+                <svg className="w-6 h-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <p className="text-red-400 text-sm font-medium">{error}</p>
+              <button 
+                onClick={onClose}
+                className="mt-4 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition text-white/90"
+              >
+                Close
+              </button>
+            </div>
           ) : analysis ? (
             <>
               <div className="p-6 bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-2xl">
@@ -747,86 +753,49 @@ function BillDetailModal({ bill, onClose, userProfile }: { bill: Bill; onClose: 
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {analysis.personal_benefits && analysis.personal_benefits.length > 0 && (
-                  <BenefitCard title="💰 Financial Benefits for You" items={analysis.personal_benefits} color="emerald" />
+                {analysis.financial_impacts && analysis.financial_impacts.length > 0 && (
+                  <DetailSection title="💰 Financial Impacts" items={analysis.financial_impacts} />
                 )}
-                {analysis.climate_benefits && analysis.climate_benefits.length > 0 && (
-                  <BenefitCard title="🌍 Environmental Benefits" items={analysis.climate_benefits} color="teal" />
-                )}
-                {analysis.potential_downsides && analysis.potential_downsides.length > 0 && (
-                  <BenefitCard title="⚠️ Considerations & Challenges" items={analysis.potential_downsides} color="amber" />
+                {analysis.environmental_impacts && analysis.environmental_impacts.length > 0 && (
+                  <DetailSection title="🌍 Environmental Impacts" items={analysis.environmental_impacts} />
                 )}
               </div>
-
-              <div className="p-6 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 rounded-2xl">
-                <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                  <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                  </svg>
-                  Action Plan
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <ActionCard title="✅ Do Now" items={analysis.actions.do_now} color="emerald" />
-                  <ActionCard title="🕒 Plan For Later" items={analysis.actions.do_later} color="amber" />
-                  <ActionCard title="🚫 Skip For Now" items={analysis.actions.ignore_for_now} color="gray" />
-                </div>
-              </div>
-
-              {analysis.money_details && (
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                    <svg className="w-5 h-5 text-emerald-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z" />
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd" />
-                    </svg>
-                    Financial Details
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {analysis.money_details.upfront_costs.length > 0 && (
-                      <DetailSection title="💳 Upfront Costs" items={analysis.money_details.upfront_costs} />
-                    )}
-                    {analysis.money_details.monthly_savings.length > 0 && (
-                      <DetailSection title="📊 Monthly Savings" items={analysis.money_details.monthly_savings} />
-                    )}
-                    {analysis.money_details.payback_timeline.length > 0 && (
-                      <DetailSection title="⏱️ Payback Timeline" items={analysis.money_details.payback_timeline} />
-                    )}
-                    {analysis.money_details.available_help.length > 0 && (
-                      <DetailSection title="🎁 Available Assistance" items={analysis.money_details.available_help} />
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {analysis.climate_details && (
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                    <svg className="w-5 h-5 text-teal-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM4.332 8.027a6.012 6.012 0 011.912-2.706C6.512 5.73 6.974 6 7.5 6A1.5 1.5 0 019 7.5V8a2 2 0 004 0 2 2 0 011.523-1.943A5.977 5.977 0 0116 10c0 .34-.028.675-.083 1H15a2 2 0 00-2 2v2.197A5.973 5.973 0 0110 16v-2a2 2 0 00-2-2 2 2 0 01-2-2 2 2 0 00-1.668-1.973z" clipRule="evenodd" />
-                    </svg>
-                    Climate Impact Details
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {analysis.climate_details.emissions_impact.length > 0 && (
-                      <DetailSection title="📉 Emissions Reduction" items={analysis.climate_details.emissions_impact} />
-                    )}
-                    {analysis.climate_details.clean_energy_added.length > 0 && (
-                      <DetailSection title="⚡ Clean Energy Expansion" items={analysis.climate_details.clean_energy_added} />
-                    )}
-                    {analysis.climate_details.resilience_benefits.length > 0 && (
-                      <DetailSection title="🛡️ Climate Resilience" items={analysis.climate_details.resilience_benefits} />
-                    )}
-                  </div>
-                </div>
-              )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {analysis.who_qualifies && <DetailSection title="✅ Eligibility Requirements" items={analysis.who_qualifies} />}
-                {analysis.next_steps && <DetailSection title="📝 Next Steps to Take" items={analysis.next_steps} />}
-                {analysis.local_checks && <DetailSection title="📍 Local Verification Needed" items={analysis.local_checks} />}
-                {analysis.open_questions && <DetailSection title="❓ Open Questions" items={analysis.open_questions} />}
-                {analysis.questions_for_pros && <DetailSection title="💬 Questions for Professionals" items={analysis.questions_for_pros} />}
+                {analysis.certainties && analysis.certainties.length > 0 && (
+                  <DetailSection title="✅ What's Certain" items={analysis.certainties} color="emerald" />
+                )}
+                {analysis.uncertainties && analysis.uncertainties.length > 0 && (
+                  <DetailSection title="❓ What's Uncertain" items={analysis.uncertainties} color="amber" />
+                )}
               </div>
+
+              {analysis.who_qualifies && analysis.who_qualifies.length > 0 && (
+                <DetailSection title="✓ Who Qualifies" items={analysis.who_qualifies} />
+              )}
+
+              {analysis.action_steps && analysis.action_steps.length > 0 && (
+                <div className="p-6 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 rounded-2xl">
+                  <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                    </svg>
+                    Action Steps
+                  </h3>
+                  <ul className="space-y-2">
+                    {analysis.action_steps.map((step, i) => (
+                      <li key={i} className="text-sm text-white/90 flex gap-3">
+                        <span className="text-emerald-400 font-semibold shrink-0">{i + 1}.</span>
+                        <span>{step}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {analysis.questions_to_ask && analysis.questions_to_ask.length > 0 && (
+                <DetailSection title="💬 Questions to Ask" items={analysis.questions_to_ask} />
+              )}
             </>
           ) : null}
         </div>
@@ -835,57 +804,19 @@ function BillDetailModal({ bill, onClose, userProfile }: { bill: Bill; onClose: 
   );
 }
 
-function BenefitCard({ title, items, color }: { title: string; items: string[]; color: string }) {
-  const styles = {
-    emerald: { bg: 'from-emerald-500/10 to-emerald-600/5', border: 'border-emerald-500/20', arrow: 'text-emerald-400' },
-    teal: { bg: 'from-teal-500/10 to-cyan-600/5', border: 'border-teal-500/20', arrow: 'text-teal-400' },
-    amber: { bg: 'from-amber-500/10 to-yellow-600/5', border: 'border-amber-500/20', arrow: 'text-amber-400' }
-  };
-
-  const style = styles[color as keyof typeof styles] || styles.emerald;
-
-  return (
-    <div className={`p-5 bg-gradient-to-br ${style.bg} border ${style.border} rounded-2xl`}>
-      <h4 className="font-semibold text-white mb-3">{title}</h4>
-      <ul className="space-y-2">
-        {items.map((item, i) => (
-          <li key={i} className="text-sm text-white/90 flex gap-2">
-            <span className={style.arrow}>→</span>
-            <span>{item}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function ActionCard({ title, items, color }: { title: string; items: string[]; color: string }) {
-  const colors = {
-    emerald: 'bg-emerald-500/10 border-emerald-500/20',
-    amber: 'bg-amber-500/10 border-amber-500/20',
-    gray: 'bg-white/5 border-white/10'
-  };
-
-  return (
-    <div className={`p-5 border rounded-2xl ${colors[color as keyof typeof colors]}`}>
-      <h4 className="font-semibold text-white mb-3">{title}</h4>
-      <ul className="space-y-2">
-        {items.map((item, i) => (
-          <li key={i} className="text-sm text-white/80 flex gap-2">
-            <span className="shrink-0">•</span>
-            <span>{item}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function DetailSection({ title, items }: { title: string; items: string[] }) {
+function DetailSection({ title, items, color }: { title: string; items: string[]; color?: string }) {
   if (!items?.length) return null;
   
+  const colorClasses = {
+    emerald: 'bg-emerald-500/10 border-emerald-500/20',
+    amber: 'bg-amber-500/10 border-amber-500/20',
+    default: 'bg-white/5 border-white/10'
+  };
+
+  const bgClass = color ? colorClasses[color as keyof typeof colorClasses] || colorClasses.default : colorClasses.default;
+
   return (
-    <div className="p-5 bg-white/5 border border-white/10 rounded-2xl">
+    <div className={`p-5 border rounded-2xl ${bgClass}`}>
       <h4 className="font-semibold text-white mb-3">{title}</h4>
       <ul className="space-y-2">
         {items.map((item, i) => (
