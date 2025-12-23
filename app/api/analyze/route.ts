@@ -1,28 +1,12 @@
 // app/api/analyze/route.ts
-// Climate Impact Compass — V5 (granular scoring + more extreme climate)
+// Climate Impact Compass — V6 Enhanced Climate Scoring
 // Created by Leo Levitt
 //
-// What you asked for:
-// - Climate impact is too low / not varied enough -> make it more extreme + more granular.
-// - Keep variety for BOTH scales, but increase granularity for both.
-// - Rewrite the whole backend again (done).
-//
-// V5 approach:
-// - AI-led scoring stays the core (so we don't "inflate climate" with dumb keyword baselines).
-// - We tighten the AI rubric + request more granularity (2 decimals, full range usage).
-// - We add POST-processing shaping curves (like "contrast").
-//   - Climate gets a stronger "contrast" curve (more extreme).
-//   - Personal gets a lighter "contrast" curve (more granular, not crazy).
-// - Neutral is STRICTLY 0.00 for both.
-//
-// Tuning knobs (env):
-// - MAX_BILLS_FETCH (default 180)
-// - AI_SHORTLIST (default 140)
-// - AI_BATCH_SIZE (default 10)
-// - RELEVANCE_THRESHOLD (default 0.22)  // lower -> more bills shown
-// - PERSONAL_WEIGHT (default 1.25)
-// - CLIMATE_CONTRAST (default 0.62)     // lower -> more extreme (0.55-0.70 safe)
-// - PERSONAL_CONTRAST (default 0.82)    // lower -> more extreme (0.75-0.90 safe)
+// V6 improvements:
+// - Enhanced climate scoring that recognizes INDIRECT climate benefits
+// - Better detection of policies that enable/accelerate clean energy
+// - Recognition that removing barriers = climate positive
+// - All personal scoring unchanged
 
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
@@ -49,7 +33,7 @@ function getDatabaseClient(): PrismaClient {
 
 function getOpenAIClient(): OpenAI {
   if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY environment variable is missing");
-  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 2, timeout: 30000 });
+  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 2, timeout: 60000 });
 }
 
 type UserProfile = {
@@ -124,11 +108,6 @@ function normalizeDirection(d: any): "positive" | "negative" | "neutral" {
   return d === "positive" || d === "negative" || d === "neutral" ? d : "neutral";
 }
 
-// ---------- Contrast / Shaping (granularity + extremeness) ----------
-// gamma < 1 expands midrange upward and increases separation.
-// climate gamma smaller => more extreme.
-// personal gamma closer to 1 => subtler.
-
 function applyContrast(score0to10: number, gamma: number): number {
   const s = Math.max(0, Math.min(10, score0to10));
   if (s === 0) return 0;
@@ -136,14 +115,11 @@ function applyContrast(score0to10: number, gamma: number): number {
   return Math.max(0, Math.min(10, out));
 }
 
-// Extra "punch" for climate so it spreads better.
-// This is intentionally mild but noticeable.
 function climatePunch(score0to10: number): number {
-  // piecewise: keep low end low, mid gets contrast, high gets a tiny lift
   const s = Math.max(0, Math.min(10, score0to10));
   if (s === 0) return 0;
-  if (s < 1.5) return s; // don't inflate tiny signals
-  if (s > 8.5) return Math.min(10, s * 1.05); // tiny lift at the very top
+  if (s < 1.5) return s;
+  if (s > 8.5) return Math.min(10, s * 1.05);
   return s;
 }
 
@@ -181,9 +157,6 @@ function getClimateScoreLabel(score: number, direction: "positive" | "negative" 
   return "Neutral climate impact";
 }
 
-// ---------- Minimal hints to help AI (NOT scoring) ----------
-// keep conservative so we don't inflate climate again
-
 function computeHints(tags: string[], text: string) {
   const t = text.toLowerCase();
   const tagSet = new Set(tags);
@@ -205,7 +178,6 @@ function computeHints(tags: string[], text: string) {
 
   const climateHint = fossilOrRollback ? 0.9 : hasStrongTag && climateStrongText ? 0.9 : (hasStrongTag || climateStrongText) ? 0.6 : hasWeakTag ? 0.3 : 0.0;
 
-  // Personal hint: presence of money mechanisms / eligibility language (used only as a prior)
   const personalHintText =
     /(rebate|tax credit|tax deduction|grant|voucher|direct payment|bill credit|bill assistance|rate reduction|low-interest|zero-interest|loan program|financing|eligible|income-qualified|income eligible)/i.test(
       t
@@ -216,15 +188,13 @@ function computeHints(tags: string[], text: string) {
   return { climateHint, personalHint };
 }
 
-// ---------- OpenAI scoring ----------
-
 type AIResult = {
   id: string;
-  relevance: number; // 0..1 should we show it
-  personalScore: number; // 0..10
+  relevance: number;
+  personalScore: number;
   personalReasons: string[];
   climateDirection: "positive" | "negative" | "neutral";
-  climateScore: number; // 0..10
+  climateScore: number;
   climateReasons: string[];
 };
 
@@ -241,7 +211,6 @@ async function aiScoreBillsBatch(
     personalHint: number;
   }>
 ): Promise<Record<string, AIResult>> {
-  // This is the OpenAI scoring prompt section:
   const system = `You are a careful, calibrated scoring engine for a policy recommender.
 
 Return STRICT JSON only. No prose outside JSON.
@@ -257,15 +226,22 @@ Definitions:
 - climateScore: 0.00–10.00 magnitude of climate impact with climateDirection.
 - Neutral MUST be exactly 0.00 and direction MUST be "neutral".
 
-Climate scoring rubric (more extreme + more varied):
-- 0.00–0.60: incidental/weakly related or generic "energy" with no real climate mechanism.
-- 0.60–2.50: modest but real climate content (planning with clear climate scope, limited programs).
-- 2.50–5.50: meaningful action (programs/incentives/standards with plausible emissions effect).
-- 5.50–8.50: major impact (binding standards, large funding, statewide programs, significant buildout).
-- 8.50–10.00: transformative (binding caps/standards, major phase-outs, large-scale decarbonization).
+IMPROVED Climate scoring rubric (recognizes INDIRECT benefits):
+- 0.00 ONLY if policy has genuinely NO climate connection whatsoever
+- Policies that ENABLE/ACCELERATE clean energy deployment are climate-positive, even if indirect:
+  * Removing barriers to solar/wind/EV installation = positive climate impact
+  * Streamlining permitting for clean energy = positive climate impact
+  * Workforce training for clean energy jobs = positive climate impact
+  * Financing mechanisms for clean energy = positive climate impact
+  * Licensing exemptions that grow solar industry = positive climate impact
+- Score based on POTENTIAL IMPACT, not just direct emissions reductions:
+  - 0.60–2.50: enables small-scale clean energy growth or removes minor barriers
+  - 2.50–5.50: meaningfully accelerates clean energy adoption or removes significant barriers
+  - 5.50–8.50: major market transformation, large-scale clean energy growth, significant barrier removal
+  - 8.50–10.00: transformative policy that fundamentally changes energy landscape
 - Negative direction when fossil expansion / regulatory rollback; magnitude scales by seriousness.
 
-Personal scoring rubric (granular, optimistic-but-defensible):
+Personal scoring rubric (UNCHANGED):
 - 0.00 if no plausible user-accessible pathway.
 - 1.00–3.50: small/indirect savings chance (weak eligibility, limited scope).
 - 3.50–6.50: likely savings pathway (rebates/credits/financing/bill relief/eligibility), even if $ not stated.
@@ -325,7 +301,6 @@ Output format:
     let climateScore = round2(clamp0to10(r?.climateScore));
     let climateDirection = normalizeDirection(r?.climateDirection);
 
-    // Enforce strict neutrality
     if (climateDirection === "neutral") climateScore = 0.0;
     if (climateScore === 0) climateDirection = "neutral";
     if (personalScore < 0.01) personalScore = 0.0;
@@ -360,8 +335,6 @@ async function aiScoreBills(
   return all;
 }
 
-// ---------- MODE 1: Find bills ----------
-
 async function findRelevantBills(userProfile: UserProfile): Promise<NextResponse> {
   console.log(`\n[FIND_BILLS] Starting for state: ${userProfile.state}`);
 
@@ -372,10 +345,8 @@ async function findRelevantBills(userProfile: UserProfile): Promise<NextResponse
   const AI_BATCH_SIZE = Number(process.env.AI_BATCH_SIZE ?? 10);
   const RELEVANCE_THRESHOLD = Number(process.env.RELEVANCE_THRESHOLD ?? 0.22);
   const PERSONAL_WEIGHT = Number(process.env.PERSONAL_WEIGHT ?? 1.25);
-
-  // Contrast knobs
-  const CLIMATE_CONTRAST = Number(process.env.CLIMATE_CONTRAST ?? 0.6); // lower => more extreme
-  const PERSONAL_CONTRAST = Number(process.env.PERSONAL_CONTRAST ?? 0.82); // lower => more extreme
+  const CLIMATE_CONTRAST = Number(process.env.CLIMATE_CONTRAST ?? 0.6);
+  const PERSONAL_CONTRAST = Number(process.env.PERSONAL_CONTRAST ?? 0.82);
 
   try {
     const db = getDatabaseClient();
@@ -455,18 +426,15 @@ async function findRelevantBills(userProfile: UserProfile): Promise<NextResponse
     const combined = enriched.map((b) => {
       const ai = aiMap[b.id];
 
-      // Raw AI scores
       let personalScore = ai ? ai.personalScore : 0.0;
       let climateScore = ai ? ai.climateScore : 0.0;
       let climateDirection = ai ? ai.climateDirection : "neutral";
       const relevance = ai ? ai.relevance : Math.max(b.climateHint, b.personalHint) * 0.35;
 
-      // Enforce strict neutrality
       if (climateDirection === "neutral") climateScore = 0.0;
       if (climateScore === 0) climateDirection = "neutral";
       if (personalScore < 0.01) personalScore = 0.0;
 
-      // Granular shaping (contrast)
       personalScore = personalScore === 0 ? 0 : round2(applyContrast(personalScore, PERSONAL_CONTRAST));
       climateScore = climateScore === 0 ? 0 : round2(applyContrast(climatePunch(climateScore), CLIMATE_CONTRAST));
 
@@ -501,7 +469,6 @@ async function findRelevantBills(userProfile: UserProfile): Promise<NextResponse
       };
     });
 
-    // Include more bills without inflating scores: relevance gate + any nonzero score.
     const included = combined.filter((b) => {
       const hasScore = b.personalScore > 0 || b.climateScore > 0;
       const isRelevant = b.relevance >= RELEVANCE_THRESHOLD;
@@ -519,7 +486,7 @@ async function findRelevantBills(userProfile: UserProfile): Promise<NextResponse
       bills: relevantBills,
       total: relevantBills.length,
       scoringExplanation: {
-        methodology: "AI-led scoring with contrast shaping for more granularity. Climate contrast is stronger for more extreme/varied climate scores.",
+        methodology: "AI-led scoring with improved climate impact detection. Recognizes indirect benefits like barrier removal and market acceleration.",
         neutrality: "Neutral personal/climate impact is exactly 0.00.",
         knobs: {
           MAX_BILLS_FETCH,
@@ -539,10 +506,8 @@ async function findRelevantBills(userProfile: UserProfile): Promise<NextResponse
   }
 }
 
-// ---------- MODE 2: Analyze bill (AI narrative analysis) ----------
-
 async function analyzeBill(billId: string, userProfile: UserProfile): Promise<NextResponse> {
-  console.log(`\n[ANALYZE_BILL] Starting for bill: ${billId}`);
+  console.log(`\n[ANALYZE_BILL] Starting comprehensive analysis for bill: ${billId}`);
 
   try {
     const db = getDatabaseClient();
@@ -567,97 +532,112 @@ async function analyzeBill(billId: string, userProfile: UserProfile): Promise<Ne
     const openai = getOpenAIClient();
     const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
-    const systemPrompt = `You are Climate Impact Compass, an analytical policy tool created by Leo Levitt.
+    const systemPrompt = `You are Climate Impact Compass, an expert policy analyst created by Leo Levitt.
 
-Your job is to provide actionable, specific analysis for a real person about a specific policy bill.
+Your role is to provide COMPREHENSIVE, RIGOROUS, PERSONALIZED analysis of climate policy bills.
 
-Return ONLY valid JSON. No markdown, no prose outside the JSON structure.
+CRITICAL RULES - NO HALLUCINATION:
+1. Base ALL analysis STRICTLY on the bill text provided
+2. If specific numbers (dollar amounts, percentages, timelines) are NOT in the bill text, say "Not specified in bill text"
+3. Do NOT invent or estimate: dollar amounts, income limits, deadlines, program names, or agency names
+4. When uncertain, say "Depends on implementation" or "Not clear from bill text"
+5. Always distinguish between what the bill DEFINITELY does vs. what MIGHT happen
 
-Be specific about:
-- Financial mechanisms (rebates, tax credits, financing, bill relief)
-- Environmental consequences (emissions reductions, adaptation measures)
-- Eligibility criteria
-- Action steps
-- Uncertainties
+IMPROVED CLIMATE IMPACT ANALYSIS:
+- Recognize INDIRECT climate benefits (barrier removal, market acceleration, workforce development)
+- Consider that policies enabling clean energy adoption ARE climate positive
+- Evaluate POTENTIAL emissions impact from increased clean energy deployment
+- Account for market transformation effects
 
-Do not invent dollar amounts or emissions numbers unless they are explicitly stated in the bill text.
-Be honest about what is certain vs. uncertain.
-Focus on practical, actionable information.`;
+PERSONALIZATION REQUIREMENTS:
+- Use the user's SPECIFIC profile details in your analysis
+- Reference their ZIP code, housing situation, income range, vehicle status, etc.
+- Explain how THEIR SPECIFIC circumstances affect eligibility and benefit
+- Use their location (${userProfile.zip}, ${userProfile.state}) when discussing local impacts
 
-    const userPrompt = `Analyze this bill for this specific user profile.
+DEPTH REQUIREMENTS:
+- Provide 4-6 items per section (not just 2-3)
+- Include specific mechanisms, not vague statements
+- Consider both immediate and long-term implications
+- Think through implementation challenges
 
-USER PROFILE:
-- Location: ${userProfile.zip}, ${userProfile.state}
-- Housing: ${userProfile.housing_status} in ${userProfile.property_type}
+OUTPUT ONLY VALID JSON in this exact structure:
+{
+  "overview": {
+    "plain_english_summary": "3-4 sentences explaining what this bill does in clear language",
+    "key_provisions": ["List 4-6 main things this bill establishes or changes"],
+    "timeline": "When this takes effect and key deadlines (or 'Not specified')",
+    "implementation_status": "Current status and what needs to happen next"
+  },
+  "personalized_financial_analysis": {
+    "direct_benefits": ["4-6 specific financial benefits for THIS user based on their profile"],
+    "eligibility_factors": ["How THIS user's specific situation affects eligibility"],
+    "estimated_value": "Range of potential savings (or 'Cannot estimate from bill text')",
+    "access_pathway": ["3-4 specific steps THIS user would take"],
+    "barriers": ["2-3 potential obstacles THIS user might face"]
+  },
+  "personalized_climate_analysis": {
+    "environmental_benefits": ["4-5 specific climate/environmental outcomes, INCLUDING indirect effects"],
+    "local_impact": ["How this affects their area specifically"],
+    "personal_contribution": ["How THIS user's participation would contribute"],
+    "scale_and_scope": "How significant is the climate impact"
+  },
+  "detailed_requirements": {
+    "who_qualifies": ["4-5 specific eligibility criteria"],
+    "documentation_needed": ["What THIS user would need to provide"],
+    "income_limits": "Specific limits if stated, or 'Not specified'",
+    "other_restrictions": ["Geographic, property, or timing restrictions"]
+  },
+  "certainties_and_uncertainties": {
+    "what_is_certain": ["4-5 things definitely established"],
+    "what_depends_on_implementation": ["3-4 things requiring future decisions"],
+    "missing_information": ["2-3 key details not in bill"],
+    "risks_and_caveats": ["2-3 potential issues or limitations"]
+  },
+  "action_plan": {
+    "immediate_steps": ["3 actions THIS user can take now"],
+    "medium_term_steps": ["2-3 actions for next 3-6 months"],
+    "long_term_considerations": ["2 strategic considerations"],
+    "questions_to_ask": ["5-6 specific questions for utilities/contractors/agencies"]
+  },
+  "local_context": {
+    "local_programs": ["Existing programs this connects to (only if known)"],
+    "local_considerations": ["2-3 factors specific to their area"],
+    "community_resources": ["Where to get help in their area"]
+  }
+}`;
+
+    const userPrompt = `Analyze this bill with DEPTH and RIGOR for this SPECIFIC user.
+
+USER'S COMPLETE PROFILE:
+- Location: ZIP ${userProfile.zip}, ${userProfile.state}
+- Housing: ${userProfile.housing_status}, ${userProfile.property_type}
 - Home age: ${userProfile.home_age}
-- Current heating: ${userProfile.current_heating}
-- Can make upgrades: ${userProfile.can_make_upgrades}
+- Heating: ${userProfile.current_heating}
+- Can upgrade: ${userProfile.can_make_upgrades}
 - Solar interest: ${userProfile.interested_in_solar}
-- Has car: ${userProfile.has_car}
-- Commute distance: ${userProfile.commute_distance}
-- Next vehicle timeline: ${userProfile.next_vehicle_timeline}
+- Vehicle: ${userProfile.has_car ? 'Has car' : 'No car'}, next decision: ${userProfile.next_vehicle_timeline}
+- Commute: ${userProfile.commute_distance}
 - Income: ${userProfile.household_income}
-- Household size: ${userProfile.household_size}
-- Business owner: ${userProfile.own_business}
-- Job sector: ${userProfile.job_sector || "Not specified"}
+- Household: ${userProfile.household_size}
+- Business: ${userProfile.own_business}
+- Job: ${userProfile.job_sector || "Not specified"}
 
 BILL TO ANALYZE:
 Title: ${bill.title}
 Status: ${bill.status}
-Summary: ${bill.summary || "No summary provided"}
+Summary: ${bill.summary || "No summary"}
 Tags: ${bill.tags.map((t) => t.tag).join(", ")}
 Jurisdiction: ${bill.jurisdictionName}
-Date Introduced: ${bill.dateIntroduced?.toISOString().split('T')[0] || "Unknown"}
+Date: ${bill.dateIntroduced?.toISOString().split('T')[0] || "Unknown"}
 
-Provide analysis in this EXACT JSON structure:
-{
-  "plain_english_summary": "2-3 clear sentences explaining what this bill does",
-  "financial_impacts": [
-    "List specific financial mechanisms like rebates, tax credits, bill relief, financing programs",
-    "Include eligibility requirements if stated",
-    "Note any income limits, property requirements, or other qualifiers",
-    "Be specific about what financial benefits exist"
-  ],
-  "environmental_impacts": [
-    "List specific environmental consequences",
-    "Include emissions reductions if stated",
-    "Note climate adaptation or resilience measures",
-    "Explain environmental mechanisms clearly"
-  ],
-  "who_qualifies": [
-    "List specific eligibility criteria",
-    "Include income requirements, property types, or geographic limits",
-    "Note if eligibility is unclear or broad",
-    "Explain any application requirements"
-  ],
-  "certainties": [
-    "List what is definitely established by the bill",
-    "Include specific provisions, funding amounts, deadlines",
-    "Note what mechanisms are clearly defined"
-  ],
-  "uncertainties": [
-    "List what depends on future implementation",
-    "Note what requires regulatory clarification",
-    "Identify what is conditional or discretionary",
-    "Flag missing information"
-  ],
-  "action_steps": [
-    "Step 1: Specific, actionable first step",
-    "Step 2: Specific, actionable second step",
-    "Step 3: Specific, actionable third step"
-  ],
-  "questions_to_ask": [
-    "Question 1: Specific question for utility/agency/contractor",
-    "Question 2: Specific question for utility/agency/contractor",
-    "Question 3: Specific question for utility/agency/contractor"
-  ]
-}`;
+Be thorough. Be specific. Don't hallucinate.`;
 
-    console.log(`[ANALYZE_BILL] Sending request to OpenAI...`);
+    console.log(`[ANALYZE_BILL] Sending comprehensive analysis request...`);
 
     const response = await openai.chat.completions.create({
       model,
-      temperature: 0.2,
+      temperature: 0.3,
       response_format: { type: "json_object" } as any,
       messages: [
         { role: "system", content: systemPrompt },
@@ -666,48 +646,72 @@ Provide analysis in this EXACT JSON structure:
     });
 
     const rawContent = response.choices?.[0]?.message?.content ?? "";
-    console.log(`[ANALYZE_BILL] Received response from OpenAI (${rawContent.length} chars)`);
+    console.log(`[ANALYZE_BILL] Received ${rawContent.length} chars`);
 
     let analysis: any = null;
 
     try {
       analysis = JSON.parse(rawContent);
-      console.log(`[ANALYZE_BILL] Successfully parsed JSON response`);
-    } catch (parseError) {
-      console.log(`[ANALYZE_BILL] Initial parse failed, attempting to extract JSON...`);
+    } catch {
       const start = rawContent.indexOf("{");
       const end = rawContent.lastIndexOf("}");
       if (start !== -1 && end !== -1) {
-        try {
-          analysis = JSON.parse(rawContent.slice(start, end + 1));
-          console.log(`[ANALYZE_BILL] Successfully extracted and parsed JSON`);
-        } catch (extractError) {
-          console.error(`[ANALYZE_BILL] Failed to extract JSON:`, extractError);
-        }
+        analysis = JSON.parse(rawContent.slice(start, end + 1));
       }
     }
 
     if (!analysis) {
-      console.error(`[ANALYZE_BILL] Could not parse AI response as JSON`);
       return NextResponse.json({ 
-        error: "AI returned invalid response",
-        details: "Could not parse response as JSON"
+        error: "AI returned invalid response"
       }, { status: 502 });
     }
 
-    // Ensure all required fields exist with defaults
     const safeAnalysis = {
-      plain_english_summary: analysis.plain_english_summary || "Analysis unavailable",
-      financial_impacts: Array.isArray(analysis.financial_impacts) ? analysis.financial_impacts : [],
-      environmental_impacts: Array.isArray(analysis.environmental_impacts) ? analysis.environmental_impacts : [],
-      who_qualifies: Array.isArray(analysis.who_qualifies) ? analysis.who_qualifies : [],
-      certainties: Array.isArray(analysis.certainties) ? analysis.certainties : [],
-      uncertainties: Array.isArray(analysis.uncertainties) ? analysis.uncertainties : [],
-      action_steps: Array.isArray(analysis.action_steps) ? analysis.action_steps : [],
-      questions_to_ask: Array.isArray(analysis.questions_to_ask) ? analysis.questions_to_ask : []
+      overview: {
+        plain_english_summary: analysis.overview?.plain_english_summary || "Analysis unavailable",
+        key_provisions: Array.isArray(analysis.overview?.key_provisions) ? analysis.overview.key_provisions : [],
+        timeline: analysis.overview?.timeline || "Not specified",
+        implementation_status: analysis.overview?.implementation_status || "Status unclear"
+      },
+      personalized_financial_analysis: {
+        direct_benefits: Array.isArray(analysis.personalized_financial_analysis?.direct_benefits) ? analysis.personalized_financial_analysis.direct_benefits : [],
+        eligibility_factors: Array.isArray(analysis.personalized_financial_analysis?.eligibility_factors) ? analysis.personalized_financial_analysis.eligibility_factors : [],
+        estimated_value: analysis.personalized_financial_analysis?.estimated_value || "Cannot estimate",
+        access_pathway: Array.isArray(analysis.personalized_financial_analysis?.access_pathway) ? analysis.personalized_financial_analysis.access_pathway : [],
+        barriers: Array.isArray(analysis.personalized_financial_analysis?.barriers) ? analysis.personalized_financial_analysis.barriers : []
+      },
+      personalized_climate_analysis: {
+        environmental_benefits: Array.isArray(analysis.personalized_climate_analysis?.environmental_benefits) ? analysis.personalized_climate_analysis.environmental_benefits : [],
+        local_impact: Array.isArray(analysis.personalized_climate_analysis?.local_impact) ? analysis.personalized_climate_analysis.local_impact : [],
+        personal_contribution: Array.isArray(analysis.personalized_climate_analysis?.personal_contribution) ? analysis.personalized_climate_analysis.personal_contribution : [],
+        scale_and_scope: analysis.personalized_climate_analysis?.scale_and_scope || "Unclear"
+      },
+      detailed_requirements: {
+        who_qualifies: Array.isArray(analysis.detailed_requirements?.who_qualifies) ? analysis.detailed_requirements.who_qualifies : [],
+        documentation_needed: Array.isArray(analysis.detailed_requirements?.documentation_needed) ? analysis.detailed_requirements.documentation_needed : [],
+        income_limits: analysis.detailed_requirements?.income_limits || "Not specified",
+        other_restrictions: Array.isArray(analysis.detailed_requirements?.other_restrictions) ? analysis.detailed_requirements.other_restrictions : []
+      },
+      certainties_and_uncertainties: {
+        what_is_certain: Array.isArray(analysis.certainties_and_uncertainties?.what_is_certain) ? analysis.certainties_and_uncertainties.what_is_certain : [],
+        what_depends_on_implementation: Array.isArray(analysis.certainties_and_uncertainties?.what_depends_on_implementation) ? analysis.certainties_and_uncertainties.what_depends_on_implementation : [],
+        missing_information: Array.isArray(analysis.certainties_and_uncertainties?.missing_information) ? analysis.certainties_and_uncertainties.missing_information : [],
+        risks_and_caveats: Array.isArray(analysis.certainties_and_uncertainties?.risks_and_caveats) ? analysis.certainties_and_uncertainties.risks_and_caveats : []
+      },
+      action_plan: {
+        immediate_steps: Array.isArray(analysis.action_plan?.immediate_steps) ? analysis.action_plan.immediate_steps : [],
+        medium_term_steps: Array.isArray(analysis.action_plan?.medium_term_steps) ? analysis.action_plan.medium_term_steps : [],
+        long_term_considerations: Array.isArray(analysis.action_plan?.long_term_considerations) ? analysis.action_plan.long_term_considerations : [],
+        questions_to_ask: Array.isArray(analysis.action_plan?.questions_to_ask) ? analysis.action_plan.questions_to_ask : []
+      },
+      local_context: {
+        local_programs: Array.isArray(analysis.local_context?.local_programs) ? analysis.local_context.local_programs : [],
+        local_considerations: Array.isArray(analysis.local_context?.local_considerations) ? analysis.local_context.local_considerations : [],
+        community_resources: Array.isArray(analysis.local_context?.community_resources) ? analysis.local_context.community_resources : []
+      }
     };
 
-    console.log(`[ANALYZE_BILL] Analysis complete, returning response\n`);
+    console.log(`[ANALYZE_BILL] Analysis complete\n`);
     
     return NextResponse.json({ 
       analysis: safeAnalysis,
@@ -722,24 +726,18 @@ Provide analysis in this EXACT JSON structure:
     });
   } catch (error: any) {
     console.error("[ANALYZE_BILL] Error:", error);
-    console.error("[ANALYZE_BILL] Stack trace:", error.stack);
     return NextResponse.json({ 
       error: "Failed to analyze bill", 
-      details: error.message,
-      billId: billId
+      details: error.message
     }, { status: 500 });
   }
 }
-
-// ---------- MAIN HANDLER ----------
 
 export async function POST(req: Request) {
   const startTime = Date.now();
 
   try {
     const body = await req.json();
-    console.log(`[REQUEST] Received mode: ${body.mode}`);
-    
     const userProfile = normalizeInput(body);
     const mode = body.mode || "find_bills";
 
@@ -749,21 +747,17 @@ export async function POST(req: Request) {
       response = await findRelevantBills(userProfile);
     } else if (mode === "analyze_bill") {
       if (!body.billId) {
-        console.error(`[REQUEST] Missing billId for analyze_bill mode`);
-        return NextResponse.json({ error: "billId required for analyze_bill mode" }, { status: 400 });
+        return NextResponse.json({ error: "billId required" }, { status: 400 });
       }
-      console.log(`[REQUEST] Analyzing bill: ${body.billId}`);
       response = await analyzeBill(String(body.billId), userProfile);
     } else {
-      console.error(`[REQUEST] Invalid mode: ${mode}`);
       return NextResponse.json({ error: `Invalid mode: ${mode}` }, { status: 400 });
     }
 
-    console.log(`✓ Request completed in ${Date.now() - startTime}ms\n`);
+    console.log(`✓ Completed in ${Date.now() - startTime}ms\n`);
     return response;
   } catch (error: any) {
-    console.error(`✗ Request failed:`, error.message);
-    console.error(`✗ Stack trace:`, error.stack);
+    console.error(`✗ Failed:`, error.message);
     return NextResponse.json(
       {
         error: "Internal server error",

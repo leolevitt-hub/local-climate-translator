@@ -2,16 +2,16 @@
 
 import React, { useState } from 'react';
 
-// Types
+// Types matching enhanced backend
 type UserProfile = {
   zip: string;
   state: string;
   housing_status: string;
   property_type: string;
   can_make_upgrades: string;
+  utility_fuels: string;
   has_car: string;
   next_vehicle_timeline: string;
-  utility_fuels: string;
   job_sector: string;
   household_income: string;
   household_size: string;
@@ -42,16 +42,61 @@ type Bill = {
   sources?: Array<{ url: string; name: string | null }>;
 };
 
-type Analysis = {
-  plain_english_summary: string;
-  financial_impacts: string[];
-  environmental_impacts: string[];
-  who_qualifies: string[];
-  certainties: string[];
-  uncertainties: string[];
-  action_steps: string[];
-  questions_to_ask: string[];
+type ComprehensiveAnalysis = {
+  overview: {
+    plain_english_summary: string;
+    key_provisions: string[];
+    timeline: string;
+    implementation_status: string;
+  };
+  personalized_financial_analysis: {
+    direct_benefits: string[];
+    eligibility_factors: string[];
+    estimated_value: string;
+    access_pathway: string[];
+    barriers: string[];
+  };
+  personalized_climate_analysis: {
+    environmental_benefits: string[];
+    local_impact: string[];
+    personal_contribution: string[];
+    scale_and_scope: string;
+  };
+  detailed_requirements: {
+    who_qualifies: string[];
+    documentation_needed: string[];
+    income_limits: string;
+    other_restrictions: string[];
+  };
+  certainties_and_uncertainties: {
+    what_is_certain: string[];
+    what_depends_on_implementation: string[];
+    missing_information: string[];
+    risks_and_caveats: string[];
+  };
+  action_plan: {
+    immediate_steps: string[];
+    medium_term_steps: string[];
+    long_term_considerations: string[];
+    questions_to_ask: string[];
+  };
+  local_context: {
+    local_programs: string[];
+    local_considerations: string[];
+    community_resources: string[];
+  };
 };
+
+// Unique geometric patterns for visual interest
+function GeometricPattern() {
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-[0.015]">
+      <div className="absolute top-0 left-1/4 w-96 h-96 border-2 border-emerald-400 rotate-45 rounded-3xl" />
+      <div className="absolute bottom-0 right-1/4 w-72 h-72 border-2 border-teal-400 -rotate-12 rounded-2xl" />
+      <div className="absolute top-1/3 right-1/3 w-64 h-64 border border-cyan-400 rotate-[60deg] rounded-3xl" />
+    </div>
+  );
+}
 
 // Components
 function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfile) => void; loading: boolean }) {
@@ -80,523 +125,313 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
   };
 
   return (
-    <div className="space-y-6">
-      <div className="p-6 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 rounded-2xl">
-        <div className="flex items-start gap-4">
-          <div className="p-3 bg-emerald-500/20 rounded-xl">
-            <svg className="w-6 h-6 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    <form onSubmit={handleSubmit} className="space-y-12">
+      {/* Intro Banner */}
+      <div className="relative p-8 bg-gradient-to-br from-emerald-500/[0.15] via-teal-500/[0.12] to-transparent border-l-4 border-emerald-400 rounded-r-2xl">
+        <div className="absolute -left-1 top-8 bottom-8 w-1 bg-gradient-to-b from-emerald-400 to-teal-500" />
+        <div className="flex items-start gap-6">
+          <div className="shrink-0 w-16 h-16 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl flex items-center justify-center transform -rotate-3">
+            <svg className="w-8 h-8 text-zinc-950" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
           <div className="flex-1">
-            <h3 className="font-semibold text-white mb-2">Evidence-Based Climate Policy Analysis</h3>
-            <p className="text-sm text-white/80 leading-relaxed">
-              Answer these questions to get personalized scores. More details = more accurate analysis of <span className="text-emerald-400 font-medium">financial benefits</span> and <span className="text-teal-400 font-medium">climate impact</span>. All data processed locally.
+            <h3 className="text-2xl font-black text-white mb-3 tracking-tight">Evidence-Based Policy Analysis</h3>
+            <p className="text-base text-white/85 leading-relaxed mb-4">
+              Complete this profile to receive <span className="font-bold text-emerald-300">dual-impact scores</span> showing 
+              both your <span className="font-bold text-emerald-300">personal financial benefit</span> and the <span className="font-bold text-teal-300">climate impact</span> of each policy.
             </p>
+            <div className="flex flex-wrap gap-2">
+              <span className="px-3 py-1.5 bg-emerald-400/20 text-emerald-300 text-xs font-bold rounded-full border border-emerald-400/30">
+                AI-Powered
+              </span>
+              <span className="px-3 py-1.5 bg-teal-400/20 text-teal-300 text-xs font-bold rounded-full border border-teal-400/30">
+                Location-Specific
+              </span>
+              <span className="px-3 py-1.5 bg-cyan-400/20 text-cyan-300 text-xs font-bold rounded-full border border-cyan-400/30">
+                No Hallucination
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-8">
-        {/* Location Section */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-white flex items-center gap-2 pb-2 border-b border-white/10">
-            <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            Location
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block mb-2">
-                <span className="text-sm font-medium text-white">ZIP Code</span>
-                <span className="block text-xs text-white/50 mt-0.5">Matches you to local policies & incentives</span>
-              </label>
-              <input
-                type="text"
-                value={formData.zip}
-                onChange={(e) => setFormData({ ...formData, zip: e.target.value })}
-                placeholder="06511"
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block mb-2">
-                <span className="text-sm font-medium text-white">State</span>
-                <span className="block text-xs text-white/50 mt-0.5">Currently analyzing Connecticut policies</span>
-              </label>
-              <select
-                value={formData.state}
-                onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition [&>option]:bg-zinc-900 [&>option]:text-white"
-              >
-                <option value="CT">Connecticut</option>
-                <option value="CA">California (Coming Soon)</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Housing Section */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-white flex items-center gap-2 pb-2 border-b border-white/10">
-            <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-            </svg>
-            Housing & Property
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block mb-2">
-                <span className="text-sm font-medium text-white">Housing Status</span>
-                <span className="block text-xs text-white/50 mt-0.5">Owners can directly access most home incentives</span>
-              </label>
-              <select
-                value={formData.housing_status}
-                onChange={(e) => setFormData({ ...formData, housing_status: e.target.value })}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition [&>option]:bg-zinc-900 [&>option]:text-white"
-              >
-                <option>Renter</option>
-                <option>Owner</option>
-                <option>Other</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block mb-2">
-                <span className="text-sm font-medium text-white">Property Type</span>
-                <span className="block text-xs text-white/50 mt-0.5">Single-family homes qualify for more upgrades</span>
-              </label>
-              <select
-                value={formData.property_type}
-                onChange={(e) => setFormData({ ...formData, property_type: e.target.value })}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition [&>option]:bg-zinc-900 [&>option]:text-white"
-              >
-                <option>Apartment</option>
-                <option>Single-family home</option>
-                <option>Multi-family home</option>
-                <option>Condo</option>
-                <option>Other</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block mb-2">
-                <span className="text-sm font-medium text-white">Can Make Upgrades?</span>
-                <span className="block text-xs text-white/50 mt-0.5">Ability to install solar, heat pumps, etc.</span>
-              </label>
-              <select
-                value={formData.can_make_upgrades}
-                onChange={(e) => setFormData({ ...formData, can_make_upgrades: e.target.value })}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition [&>option]:bg-zinc-900 [&>option]:text-white"
-              >
-                <option>Yes</option>
-                <option>No</option>
-                <option>Not sure</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block mb-2">
-                <span className="text-sm font-medium text-white">Home Age</span>
-                <span className="block text-xs text-white/50 mt-0.5">Older homes benefit more from efficiency upgrades</span>
-              </label>
-              <select
-                value={formData.home_age}
-                onChange={(e) => setFormData({ ...formData, home_age: e.target.value })}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition [&>option]:bg-zinc-900 [&>option]:text-white"
-              >
-                <option>Not sure</option>
-                <option>Less than 10 years</option>
-                <option>10-30 years</option>
-                <option>30-50 years</option>
-                <option>More than 50 years</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block mb-2">
-                <span className="text-sm font-medium text-white">Current Heating</span>
-                <span className="block text-xs text-white/50 mt-0.5">Fossil fuel heating → bigger heat pump savings</span>
-              </label>
-              <select
-                value={formData.current_heating}
-                onChange={(e) => setFormData({ ...formData, current_heating: e.target.value })}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition [&>option]:bg-zinc-900 [&>option]:text-white"
-              >
-                <option>Not sure</option>
-                <option>Natural gas</option>
-                <option>Oil</option>
-                <option>Electric resistance</option>
-                <option>Heat pump (already efficient!)</option>
-                <option>Propane</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block mb-2">
-                <span className="text-sm font-medium text-white">Interested in Solar?</span>
-                <span className="block text-xs text-white/50 mt-0.5">Prioritizes solar incentives in your results</span>
-              </label>
-              <select
-                value={formData.interested_in_solar}
-                onChange={(e) => setFormData({ ...formData, interested_in_solar: e.target.value })}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition [&>option]:bg-zinc-900 [&>option]:text-white"
-              >
-                <option>Maybe</option>
-                <option>Yes, very interested</option>
-                <option>No, not feasible</option>
-                <option>Already have solar</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Transportation Section */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-white flex items-center gap-2 pb-2 border-b border-white/10">
-            <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-            </svg>
-            Transportation
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block mb-2">
-                <span className="text-sm font-medium text-white">Have a Car?</span>
-                <span className="block text-xs text-white/50 mt-0.5">Determines EV policy relevance</span>
-              </label>
-              <select
-                value={formData.has_car}
-                onChange={(e) => setFormData({ ...formData, has_car: e.target.value })}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition [&>option]:bg-zinc-900 [&>option]:text-white"
-              >
-                <option>Yes</option>
-                <option>No</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block mb-2">
-                <span className="text-sm font-medium text-white">Vehicle Decision Timeline</span>
-                <span className="block text-xs text-white/50 mt-0.5">When you might buy/lease next vehicle</span>
-              </label>
-              <select
-                value={formData.next_vehicle_timeline}
-                onChange={(e) => setFormData({ ...formData, next_vehicle_timeline: e.target.value })}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition [&>option]:bg-zinc-900 [&>option]:text-white"
-              >
-                <option>0-12 months</option>
-                <option>1-3 years</option>
-                <option>3-10 years</option>
-                <option>10+ years</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block mb-2">
-                <span className="text-sm font-medium text-white">Vehicle Preference</span>
-                <span className="block text-xs text-white/50 mt-0.5">Filters relevant vehicle policies</span>
-              </label>
-              <select
-                value={formData.utility_fuels}
-                onChange={(e) => setFormData({ ...formData, utility_fuels: e.target.value })}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition [&>option]:bg-zinc-900 [&>option]:text-white"
-              >
-                <option>No preference</option>
-                <option>Electric only</option>
-                <option>Hybrid</option>
-                <option>Gas</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block mb-2">
-                <span className="text-sm font-medium text-white">Commute Distance</span>
-                <span className="block text-xs text-white/50 mt-0.5">Longer commutes → higher EV fuel savings</span>
-              </label>
-              <select
-                value={formData.commute_distance}
-                onChange={(e) => setFormData({ ...formData, commute_distance: e.target.value })}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition [&>option]:bg-zinc-900 [&>option]:text-white"
-              >
-                <option>Less than 10 miles</option>
-                <option>10-25 miles</option>
-                <option>25-50 miles</option>
-                <option>More than 50 miles</option>
-                <option>Work from home</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Household & Income Section */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-white flex items-center gap-2 pb-2 border-b border-white/10">
-            <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
-            Household Details
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block mb-2">
-                <span className="text-sm font-medium text-white">Household Income</span>
-                <span className="block text-xs text-white/50 mt-0.5">Many incentives have income limits (optional)</span>
-              </label>
-              <select
-                value={formData.household_income}
-                onChange={(e) => setFormData({ ...formData, household_income: e.target.value })}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition [&>option]:bg-zinc-900 [&>option]:text-white"
-              >
-                <option>Prefer not to say</option>
-                <option>Under $50,000</option>
-                <option>$50,000 - $100,000</option>
-                <option>$100,000 - $150,000</option>
-                <option>Over $150,000</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block mb-2">
-                <span className="text-sm font-medium text-white">Household Size</span>
-                <span className="block text-xs text-white/50 mt-0.5">Affects income limit calculations</span>
-              </label>
-              <select
-                value={formData.household_size}
-                onChange={(e) => setFormData({ ...formData, household_size: e.target.value })}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition [&>option]:bg-zinc-900 [&>option]:text-white"
-              >
-                <option>1-2 people</option>
-                <option>3-4 people</option>
-                <option>5+ people</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block mb-2">
-                <span className="text-sm font-medium text-white">Own a Business?</span>
-                <span className="block text-xs text-white/50 mt-0.5">Business owners may qualify for commercial incentives</span>
-              </label>
-              <select
-                value={formData.own_business}
-                onChange={(e) => setFormData({ ...formData, own_business: e.target.value })}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition [&>option]:bg-zinc-900 [&>option]:text-white"
-              >
-                <option>No</option>
-                <option>Yes</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Job/Career Section */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-white flex items-center gap-2 pb-2 border-b border-white/10">
-            <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
-            Career (Optional)
-          </h3>
-          <div>
-            <label className="block mb-2">
-              <span className="text-sm font-medium text-white">Job / Role</span>
-              <span className="block text-xs text-white/50 mt-0.5">Some policies offer workforce training or sector-specific incentives</span>
-            </label>
+      {/* Location */}
+      <fieldset className="space-y-6">
+        <legend className="text-xl font-black text-white mb-6 flex items-center gap-3">
+          <span className="w-1.5 h-8 bg-gradient-to-b from-emerald-400 to-teal-500 rounded-full" />
+          Location
+        </legend>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <label className="block space-y-2.5">
+            <span className="text-sm font-bold text-white tracking-wide flex items-center gap-2">
+              ZIP CODE
+              <span className="px-2 py-0.5 bg-red-500/20 text-red-300 text-[10px] font-black rounded border border-red-500/30">REQUIRED</span>
+            </span>
             <input
               type="text"
-              value={formData.job_sector}
-              onChange={(e) => setFormData({ ...formData, job_sector: e.target.value })}
-              placeholder="e.g., Student, Healthcare, Construction, Teacher"
-              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-emerald-400/50 transition"
+              value={formData.zip}
+              onChange={(e) => setFormData({ ...formData, zip: e.target.value })}
+              placeholder="06511"
+              className="w-full px-5 py-4 bg-zinc-900/50 border-2 border-zinc-700/50 rounded-xl text-white placeholder:text-zinc-500 focus:outline-none focus:border-emerald-400 focus:bg-zinc-900 transition-all font-medium"
+              required
             />
-          </div>
-        </div>
+            <p className="text-xs text-zinc-500">Matches you to local policies</p>
+          </label>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-emerald-400 to-teal-400 text-zinc-950 font-semibold rounded-xl hover:shadow-lg hover:shadow-emerald-500/20 hover:brightness-110 transition disabled:opacity-50 disabled:cursor-not-allowed"
-        >
+          <label className="block space-y-2.5">
+            <span className="text-sm font-bold text-white tracking-wide">STATE</span>
+            <select
+              value={formData.state}
+              onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+              className="w-full px-5 py-4 bg-zinc-900/50 border-2 border-zinc-700/50 rounded-xl text-white focus:outline-none focus:border-teal-400 focus:bg-zinc-900 transition-all appearance-none cursor-pointer font-medium"
+            >
+              <option value="CT" className="bg-zinc-900">Connecticut</option>
+              <option value="CA" className="bg-zinc-900 text-zinc-500">California (Coming Soon)</option>
+            </select>
+            <p className="text-xs text-zinc-500">Currently analyzing CT policies</p>
+          </label>
+        </div>
+      </fieldset>
+
+      {/* Housing */}
+      <fieldset className="space-y-6">
+        <legend className="text-xl font-black text-white mb-6 flex items-center gap-3">
+          <span className="w-1.5 h-8 bg-gradient-to-b from-teal-400 to-cyan-500 rounded-full" />
+          Housing & Property
+        </legend>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {[
+            { key: 'housing_status', label: 'Housing Status', options: ['Renter', 'Owner', 'Other'] },
+            { key: 'property_type', label: 'Property Type', options: ['Apartment', 'Single-family home', 'Multi-family home', 'Condo', 'Other'] },
+            { key: 'can_make_upgrades', label: 'Can Make Upgrades?', options: ['Yes', 'No', 'Not sure'] },
+            { key: 'home_age', label: 'Home Age', options: ['Not sure', 'Less than 10 years', '10-30 years', '30-50 years', 'More than 50 years'] },
+            { key: 'current_heating', label: 'Current Heating', options: ['Not sure', 'Natural gas', 'Oil', 'Electric resistance', 'Heat pump (already efficient!)', 'Propane'] },
+            { key: 'interested_in_solar', label: 'Solar Interest', options: ['Maybe', 'Yes, very interested', 'No, not feasible', 'Already have solar'] },
+          ].map((field) => (
+            <label key={field.key} className="block space-y-2.5">
+              <span className="text-sm font-bold text-white tracking-wide">{field.label.toUpperCase()}</span>
+              <select
+                value={formData[field.key as keyof UserProfile]}
+                onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
+                className="w-full px-5 py-4 bg-zinc-900/50 border-2 border-zinc-700/50 rounded-xl text-white focus:outline-none focus:border-teal-400 focus:bg-zinc-900 transition-all appearance-none cursor-pointer font-medium"
+              >
+                {field.options.map(opt => (
+                  <option key={opt} value={opt} className="bg-zinc-900">{opt}</option>
+                ))}
+              </select>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
+      {/* Transportation */}
+      <fieldset className="space-y-6">
+        <legend className="text-xl font-black text-white mb-6 flex items-center gap-3">
+          <span className="w-1.5 h-8 bg-gradient-to-b from-cyan-400 to-blue-500 rounded-full" />
+          Transportation
+        </legend>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[
+            { key: 'has_car', label: 'Have a Car?', options: ['Yes', 'No'] },
+            { key: 'next_vehicle_timeline', label: 'Next Vehicle Decision', options: ['0-12 months', '1-3 years', '3-10 years', '10+ years'] },
+            { key: 'utility_fuels', label: 'Vehicle Preference', options: ['No preference', 'Electric only', 'Hybrid', 'Gas'] },
+            { key: 'commute_distance', label: 'Commute Distance', options: ['Less than 10 miles', '10-25 miles', '25-50 miles', 'More than 50 miles', 'Work from home'] },
+          ].map((field) => (
+            <label key={field.key} className="block space-y-2.5">
+              <span className="text-sm font-bold text-white tracking-wide">{field.label.toUpperCase()}</span>
+              <select
+                value={formData[field.key as keyof UserProfile]}
+                onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
+                className="w-full px-5 py-4 bg-zinc-900/50 border-2 border-zinc-700/50 rounded-xl text-white focus:outline-none focus:border-cyan-400 focus:bg-zinc-900 transition-all appearance-none cursor-pointer font-medium"
+              >
+                {field.options.map(opt => (
+                  <option key={opt} value={opt} className="bg-zinc-900">{opt}</option>
+                ))}
+              </select>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
+      {/* Household */}
+      <fieldset className="space-y-6">
+        <legend className="text-xl font-black text-white mb-6 flex items-center gap-3">
+          <span className="w-1.5 h-8 bg-gradient-to-b from-emerald-400 to-teal-500 rounded-full" />
+          Household Details
+        </legend>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {[
+            { key: 'household_income', label: 'Household Income', options: ['Prefer not to say', 'Under $50,000', '$50,000 - $100,000', '$100,000 - $150,000', 'Over $150,000'] },
+            { key: 'household_size', label: 'Household Size', options: ['1-2 people', '3-4 people', '5+ people'] },
+            { key: 'own_business', label: 'Own Business?', options: ['No', 'Yes'] },
+          ].map((field) => (
+            <label key={field.key} className="block space-y-2.5">
+              <span className="text-sm font-bold text-white tracking-wide">{field.label.toUpperCase()}</span>
+              <select
+                value={formData[field.key as keyof UserProfile]}
+                onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
+                className="w-full px-5 py-4 bg-zinc-900/50 border-2 border-zinc-700/50 rounded-xl text-white focus:outline-none focus:border-emerald-400 focus:bg-zinc-900 transition-all appearance-none cursor-pointer font-medium"
+              >
+                {field.options.map(opt => (
+                  <option key={opt} value={opt} className="bg-zinc-900">{opt}</option>
+                ))}
+              </select>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
+      {/* Job */}
+      <fieldset className="space-y-6">
+        <legend className="text-xl font-black text-white mb-6 flex items-center gap-3">
+          <span className="w-1.5 h-8 bg-gradient-to-b from-teal-400 to-cyan-500 rounded-full" />
+          Career (Optional)
+        </legend>
+        <label className="block space-y-2.5">
+          <span className="text-sm font-bold text-white tracking-wide">JOB / ROLE</span>
+          <input
+            type="text"
+            value={formData.job_sector}
+            onChange={(e) => setFormData({ ...formData, job_sector: e.target.value })}
+            placeholder="e.g., Student, Healthcare, Construction, Teacher"
+            className="w-full px-5 py-4 bg-zinc-900/50 border-2 border-zinc-700/50 rounded-xl text-white placeholder:text-zinc-500 focus:outline-none focus:border-teal-400 focus:bg-zinc-900 transition-all font-medium"
+          />
+          <p className="text-xs text-zinc-500">Some policies offer sector-specific benefits</p>
+        </label>
+      </fieldset>
+
+      {/* Submit */}
+      <button
+        type="submit"
+        disabled={loading}
+        className="group relative w-full px-8 py-6 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-zinc-950 font-black text-lg rounded-2xl hover:shadow-2xl hover:shadow-emerald-500/30 active:scale-[0.99] transition-all disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden"
+      >
+        <div className="absolute inset-0 bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+        <div className="relative flex items-center justify-center gap-4">
           {loading ? (
             <>
-              <div className="w-5 h-5 border-2 border-zinc-900/20 border-t-zinc-900 rounded-full animate-spin" />
-              Analyzing Connecticut policies with dual-impact scoring...
+              <div className="w-6 h-6 border-3 border-zinc-900/20 border-t-zinc-900 rounded-full animate-spin" />
+              <span>ANALYZING POLICIES...</span>
             </>
           ) : (
             <>
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
-              Find Connecticut Climate Policies That Matter to You
+              <span>FIND YOUR CLIMATE POLICIES</span>
             </>
           )}
-        </button>
-
-        <div className="text-xs text-white/50 text-center space-y-1">
-          <p>Your data is processed locally and never stored. All calculations use transparent analytical frameworks.</p>
-          <p className="text-white/40">More detailed answers = more accurate personal impact scores</p>
         </div>
-      </form>
-    </div>
+      </button>
+
+      <p className="text-center text-xs text-zinc-500">
+        🔒 Data processed locally • Never stored • Fully transparent methodology
+      </p>
+    </form>
   );
 }
 
 function ScoreMeter({ score, label, color, direction }: { score: number; label: string; color: string; direction: string }) {
   const percentage = (score / 10) * 100;
   
-  let gradientClass = "from-emerald-400 to-emerald-500";
-  let textColor = "text-emerald-400";
-  let bgGlow = "shadow-emerald-500/20";
+  const colorMap: Record<string, { gradient: string; text: string; shadow: string }> = {
+    personal: { gradient: 'from-emerald-400 to-emerald-500', text: 'text-emerald-400', shadow: 'shadow-emerald-500/40' },
+    'climate-positive': { gradient: 'from-teal-400 to-cyan-500', text: 'text-teal-400', shadow: 'shadow-teal-500/40' },
+    'climate-negative': { gradient: 'from-red-400 to-orange-500', text: 'text-red-400', shadow: 'shadow-red-500/40' },
+    'climate-neutral': { gradient: 'from-zinc-400 to-zinc-500', text: 'text-zinc-400', shadow: 'shadow-zinc-500/40' },
+  };
+
+  const colorKey = color === 'climate' 
+    ? `climate-${direction}` 
+    : 'personal';
   
-  if (color === "climate") {
-    if (direction === "positive") {
-      gradientClass = "from-teal-400 to-cyan-400";
-      textColor = "text-teal-400";
-      bgGlow = "shadow-teal-500/20";
-    } else if (direction === "negative") {
-      gradientClass = "from-red-400 to-orange-400";
-      textColor = "text-red-400";
-      bgGlow = "shadow-red-500/20";
-    } else {
-      gradientClass = "from-amber-400 to-yellow-400";
-      textColor = "text-amber-400";
-      bgGlow = "shadow-amber-500/20";
-    }
-  }
+  const colors = colorMap[colorKey] || colorMap.personal;
 
   return (
-    <div className="flex items-center gap-2">
-      <div className={`relative w-16 h-16 rounded-full ${bgGlow} shadow-lg`}>
-        <svg className="w-16 h-16 transform -rotate-90">
-          <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="4" fill="none" className="text-white/10" />
+    <div className="flex items-center gap-4">
+      <div className={`relative w-24 h-24 rounded-full ${colors.shadow} shadow-lg`}>
+        <svg className="w-24 h-24 transform -rotate-90">
+          <circle cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="6" fill="none" className="text-zinc-800" />
           <circle
-            cx="32"
-            cy="32"
-            r="28"
-            stroke="url(#gradient-${label}-${direction})"
-            strokeWidth="4"
+            cx="48"
+            cy="48"
+            r="40"
+            stroke="url(#gradient)"
+            strokeWidth="6"
             fill="none"
-            strokeDasharray={`${percentage * 1.759} 175.9`}
-            className="transition-all duration-1000"
+            strokeDasharray={`${percentage * 2.513} 251.3`}
+            className="transition-all duration-1000 ease-out"
             strokeLinecap="round"
           />
           <defs>
-            <linearGradient id={`gradient-${label}-${direction}`} x1="0%" y1="0%" x2="100%">
-              <stop offset="0%" className={gradientClass.split(' ')[0].replace('from-', 'text-')} stopColor="currentColor" />
-              <stop offset="100%" className={gradientClass.split(' ')[1].replace('to-', 'text-')} stopColor="currentColor" />
+            <linearGradient id="gradient" x1="0%" y1="0%" x2="100%">
+              <stop offset="0%" className={colors.gradient.split(' ')[0].replace('from-', 'text-')} stopColor="currentColor" />
+              <stop offset="100%" className={colors.gradient.split(' ')[1].replace('to-', 'text-')} stopColor="currentColor" />
             </linearGradient>
           </defs>
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className={`text-lg font-bold ${textColor}`}>{score.toFixed(1)}</span>
+          <span className={`text-2xl font-black ${colors.text}`}>{score.toFixed(1)}</span>
         </div>
       </div>
       <div>
-        <div className="text-xs font-semibold text-white/90">{label} Impact</div>
-        <div className="text-[10px] text-white/50">0-10 scale</div>
-      </div>
-    </div>
-  );
-}
-
-function DualScoreDisplay({ bill }: { bill: Bill }) {
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-3">
-        <ScoreMeter score={bill.personalScore} label="Personal" color="personal" direction={bill.personalDirection} />
-        <div className="flex-1">
-          <div className={`text-xs font-medium ${
-            bill.personalDirection === 'positive' ? 'text-emerald-400' : 'text-white/70'
-          }`}>
-            {bill.personalLabel}
-          </div>
-          <div className="text-[10px] text-white/50 mt-0.5">Financial benefit to you</div>
-        </div>
-      </div>
-      
-      <div className="flex items-center gap-3">
-        <ScoreMeter score={bill.climateScore} label="Climate" color="climate" direction={bill.climateDirection} />
-        <div className="flex-1">
-          <div className={`text-xs font-medium ${
-            bill.climateDirection === 'positive' ? 'text-teal-400' :
-            bill.climateDirection === 'negative' ? 'text-red-400' :
-            'text-amber-400'
-          }`}>
-            {bill.climateLabel}
-          </div>
-          <div className="text-[10px] text-white/50 mt-0.5">Environmental impact</div>
-        </div>
+        <div className="text-sm font-black text-white tracking-wide">{label.toUpperCase()}</div>
+        <div className="text-xs text-zinc-500 font-bold">0-10 SCALE</div>
       </div>
     </div>
   );
 }
 
 function BillCard({ bill, onClick }: { bill: Bill; onClick: () => void }) {
-  const statusColors: Record<string, string> = {
-    passed: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
-    enacted: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
-    proposed: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
-    vetoed: 'bg-red-500/20 text-red-300 border-red-500/30'
+  const statusStyles: Record<string, string> = {
+    passed: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50',
+    enacted: 'bg-blue-500/20 text-blue-300 border-blue-500/50',
+    proposed: 'bg-amber-500/20 text-amber-300 border-amber-500/50',
+    vetoed: 'bg-red-500/20 text-red-300 border-red-500/50'
   };
 
   const getCardBorder = () => {
-    if (bill.personalScore >= 7 && bill.climateScore >= 7) {
-      return 'border-emerald-500/40 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 shadow-lg shadow-emerald-500/10';
-    }
-    if (bill.climateDirection === 'negative') {
-      return 'border-red-500/30 bg-red-500/5';
-    }
-    if (bill.personalScore >= 6) {
-      return 'border-emerald-500/30 bg-emerald-500/5';
-    }
-    return 'border-white/10 bg-white/5';
+    if (bill.personalScore >= 7 && bill.climateScore >= 7) return 'border-emerald-400/60 bg-emerald-500/5';
+    if (bill.climateDirection === 'negative') return 'border-red-500/50 bg-red-500/5';
+    if (bill.personalScore >= 6) return 'border-emerald-500/40 bg-emerald-500/5';
+    return 'border-zinc-700/50 bg-zinc-900/30';
   };
 
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left p-6 border rounded-2xl hover:border-emerald-400/40 hover:shadow-xl hover:shadow-emerald-500/10 transition-all group ${getCardBorder()}`}
+      className={`group w-full text-left p-8 border-2 rounded-2xl hover:border-emerald-400/70 hover:bg-zinc-900/50 transition-all ${getCardBorder()}`}
     >
-      <div className="flex items-start justify-between gap-4 mb-4">
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-2 flex-wrap">
-            <span className="text-sm font-mono text-white/60">{bill.identifier}</span>
-            <span className={`text-xs px-2 py-1 rounded-full border ${statusColors[bill.status] || statusColors.proposed}`}>
-              {bill.status}
+      <div className="flex items-start justify-between gap-8 mb-6">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-3 mb-4 flex-wrap">
+            <span className="px-3 py-1.5 bg-zinc-800/80 text-white font-mono font-bold text-sm rounded-lg border border-zinc-700">
+              {bill.identifier}
+            </span>
+            <span className={`px-3 py-1.5 text-xs font-black rounded-lg border ${statusStyles[bill.status] || statusStyles.proposed}`}>
+              {bill.status.toUpperCase()}
             </span>
             {bill.personalScore >= 7 && bill.climateScore >= 7 && (
-              <span className="text-xs px-2 py-1 rounded-full bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/30">
-                ⭐ High Dual Impact
-              </span>
-            )}
-            {bill.climateDirection === 'negative' && (
-              <span className="text-xs px-2 py-1 rounded-full bg-red-500/20 text-red-300 border-red-500/30">
-                ⚠️ Climate Risk
+              <span className="px-3 py-1.5 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 text-xs font-black rounded-lg border border-emerald-500/50">
+                ⭐ DUAL HIGH IMPACT
               </span>
             )}
           </div>
-          <h3 className="text-lg font-semibold text-white mb-2 group-hover:text-emerald-400 transition">
+          
+          <h3 className="text-2xl font-black text-white mb-4 group-hover:text-emerald-400 transition-colors leading-tight">
             {bill.title}
           </h3>
-          <p className="text-sm text-white/70 line-clamp-2 mb-4">{bill.summary}</p>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+          <p className="text-sm text-zinc-400 line-clamp-2 mb-6 leading-relaxed">{bill.summary}</p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {bill.personalReasons.length > 0 && (
-              <div className="space-y-1">
-                <div className="font-medium text-emerald-400/90 mb-1.5 flex items-center gap-1.5">
-                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z" />
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd" />
-                  </svg>
-                  For You:
-                </div>
-                {bill.personalReasons.slice(0, 2).map((reason, i) => (
-                  <div key={i} className="flex items-start gap-1.5 text-white/70">
-                    <span className="mt-0.5">•</span>
+              <div className="space-y-2">
+                <div className="font-black text-emerald-400 text-sm mb-3 tracking-wide">💰 FOR YOU</div>
+                {bill.personalReasons.map((reason, i) => (
+                  <div key={i} className="flex items-start gap-2 text-sm text-zinc-300">
+                    <span className="text-emerald-400 font-bold mt-0.5">→</span>
                     <span>{reason}</span>
                   </div>
                 ))}
@@ -604,20 +439,19 @@ function BillCard({ bill, onClick }: { bill: Bill; onClick: () => void }) {
             )}
             
             {bill.climateReasons.length > 0 && (
-              <div className="space-y-1">
-                <div className={`font-medium mb-1.5 flex items-center gap-1.5 ${
-                  bill.climateDirection === 'positive' ? 'text-teal-400/90' :
-                  bill.climateDirection === 'negative' ? 'text-red-400/90' :
-                  'text-amber-400/90'
+              <div className="space-y-2">
+                <div className={`font-black text-sm mb-3 tracking-wide ${
+                  bill.climateDirection === 'positive' ? 'text-teal-400' :
+                  bill.climateDirection === 'negative' ? 'text-red-400' : 'text-zinc-400'
                 }`}>
-                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM4.332 8.027a6.012 6.012 0 011.912-2.706C6.512 5.73 6.974 6 7.5 6A1.5 1.5 0 019 7.5V8a2 2 0 004 0 2 2 0 011.523-1.943A5.977 5.977 0 0116 10c0 .34-.028.675-.083 1H15a2 2 0 00-2 2v2.197A5.973 5.973 0 0110 16v-2a2 2 0 00-2-2 2 2 0 01-2-2 2 2 0 00-1.668-1.973z" clipRule="evenodd" />
-                  </svg>
-                  For Climate:
+                  🌍 FOR CLIMATE
                 </div>
-                {bill.climateReasons.slice(0, 2).map((reason, i) => (
-                  <div key={i} className="flex items-start gap-1.5 text-white/70">
-                    <span className="mt-0.5">•</span>
+                {bill.climateReasons.map((reason, i) => (
+                  <div key={i} className="flex items-start gap-2 text-sm text-zinc-300">
+                    <span className={`font-bold mt-0.5 ${
+                      bill.climateDirection === 'positive' ? 'text-teal-400' :
+                      bill.climateDirection === 'negative' ? 'text-red-400' : 'text-zinc-400'
+                    }`}>→</span>
                     <span>{reason}</span>
                   </div>
                 ))}
@@ -626,23 +460,24 @@ function BillCard({ bill, onClick }: { bill: Bill; onClick: () => void }) {
           </div>
         </div>
         
-        <DualScoreDisplay bill={bill} />
+        <div className="shrink-0 space-y-6">
+          <ScoreMeter score={bill.personalScore} label="Personal" color="personal" direction={bill.personalDirection} />
+          <ScoreMeter score={bill.climateScore} label="Climate" color="climate" direction={bill.climateDirection} />
+        </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-3">
-        {bill.tags.slice(0, 5).map((tag: string) => (
-          <span key={tag} className="text-xs px-2 py-1 bg-white/5 border border-white/10 rounded-full text-white/70">
-            {tag}
-          </span>
-        ))}
-      </div>
-
-      <div className="flex items-center justify-between text-xs text-white/50">
-        <span>{bill.jurisdictionName}</span>
-        <span className="group-hover:translate-x-1 transition flex items-center gap-1">
-          View Detailed Analysis
-          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+      <div className="flex items-center justify-between pt-4 border-t-2 border-zinc-800">
+        <div className="flex flex-wrap gap-2">
+          {bill.tags.slice(0, 4).map((tag) => (
+            <span key={tag} className="px-3 py-1 bg-zinc-800/50 border border-zinc-700 rounded-lg text-zinc-400 text-xs font-bold">
+              {tag}
+            </span>
+          ))}
+        </div>
+        <span className="text-sm font-black text-zinc-500 group-hover:text-emerald-400 transition-colors flex items-center gap-2">
+          VIEW ANALYSIS
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
           </svg>
         </span>
       </div>
@@ -651,7 +486,7 @@ function BillCard({ bill, onClick }: { bill: Bill; onClick: () => void }) {
 }
 
 function BillDetailModal({ bill, onClose, userProfile }: { bill: Bill; onClose: () => void; userProfile: UserProfile }) {
-  const [analysis, setAnalysis] = useState<Analysis | null>(null);
+  const [analysis, setAnalysis] = useState<ComprehensiveAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -660,7 +495,6 @@ function BillDetailModal({ bill, onClose, userProfile }: { bill: Bill; onClose: 
       setLoading(true);
       setError(null);
       try {
-        console.log('Analyzing bill:', bill.id);
         const response = await fetch('/api/analyze', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -672,7 +506,6 @@ function BillDetailModal({ bill, onClose, userProfile }: { bill: Bill; onClose: 
         });
 
         const data = await response.json();
-        console.log('Analysis response:', data);
 
         if (!response.ok) {
           throw new Error(data.error || data.details || 'Failed to analyze bill');
@@ -680,7 +513,6 @@ function BillDetailModal({ bill, onClose, userProfile }: { bill: Bill; onClose: 
 
         setAnalysis(data.analysis);
       } catch (error: any) {
-        console.error('Analysis failed:', error);
         setError(error.message || 'Failed to analyze bill');
       } finally {
         setLoading(false);
@@ -691,181 +523,180 @@ function BillDetailModal({ bill, onClose, userProfile }: { bill: Bill; onClose: 
   }, [bill.id, userProfile]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={onClose}>
-      <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-gradient-to-br from-zinc-900 to-zinc-950 border border-white/10 rounded-3xl shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="sticky top-0 z-10 p-6 border-b border-white/10 bg-gradient-to-br from-zinc-900/95 to-zinc-950/95 backdrop-blur">
-          <div className="flex items-start justify-between gap-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/95" onClick={onClose}>
+      <div className="relative w-full max-w-6xl max-h-[92vh] overflow-y-auto bg-zinc-950 border-2 border-zinc-800 rounded-3xl" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="sticky top-0 z-20 p-8 border-b-2 border-zinc-800 bg-zinc-950/98 backdrop-blur-xl">
+          <div className="flex items-start justify-between gap-6 mb-6">
             <div className="flex-1">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-sm font-mono text-white/60">{bill.identifier}</span>
-                <span className="text-xs px-2 py-1 bg-white/10 rounded-full text-white/70">
-                  {bill.status}
+              <div className="flex items-center gap-3 mb-4">
+                <span className="px-3 py-1.5 bg-zinc-800 text-white font-mono font-bold text-sm rounded-lg border border-zinc-700">
+                  {bill.identifier}
+                </span>
+                <span className="px-3 py-1.5 bg-zinc-800 text-zinc-400 text-xs font-black rounded-lg border border-zinc-700">
+                  {bill.status.toUpperCase()}
                 </span>
               </div>
-              <h2 className="text-2xl font-bold text-white mb-2">{bill.title}</h2>
-              <p className="text-sm text-white/70">{bill.jurisdictionName}</p>
+              <h2 className="text-3xl font-black text-white leading-tight mb-2">{bill.title}</h2>
+              <p className="text-sm font-bold text-zinc-500">{bill.jurisdictionName}</p>
             </div>
             <button 
               onClick={onClose} 
-              className="p-2 hover:bg-white/10 rounded-lg transition"
-              aria-label="Close modal"
+              className="p-3 hover:bg-zinc-800 rounded-xl transition-colors"
             >
-              <span className="text-2xl text-white/70">×</span>
+              <svg className="w-6 h-6 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
             </button>
           </div>
-          <div className="mt-4 p-4 bg-white/5 border border-white/10 rounded-xl">
-            <DualScoreDisplay bill={bill} />
+          
+          <div className="flex gap-8 p-6 bg-zinc-900/50 border-2 border-zinc-800 rounded-2xl">
+            <ScoreMeter score={bill.personalScore} label="Personal" color="personal" direction={bill.personalDirection} />
+            <ScoreMeter score={bill.climateScore} label="Climate" color="climate" direction={bill.climateDirection} />
           </div>
         </div>
 
-        <div className="p-6 space-y-6">
+        {/* Content */}
+        <div className="p-8 space-y-8">
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-12">
-              <div className="w-12 h-12 border-4 border-emerald-400/20 border-t-emerald-400 rounded-full animate-spin mb-4" />
-              <p className="text-white/60 text-sm font-medium">Analyzing policy impact with AI...</p>
-              <p className="text-white/40 text-xs mt-1">Quantifying financial & environmental benefits</p>
+            <div className="flex flex-col items-center justify-center py-20">
+              <div className="relative mb-6">
+                <div className="w-16 h-16 border-4 border-zinc-800 rounded-full" />
+                <div className="absolute inset-0 w-16 h-16 border-4 border-t-emerald-400 rounded-full animate-spin" />
+              </div>
+              <p className="text-white font-black text-lg mb-2">ANALYZING POLICY...</p>
+              <p className="text-zinc-500 text-sm">Comprehensive AI analysis in progress</p>
             </div>
           ) : error ? (
-            <div className="flex flex-col items-center justify-center py-12">
-              <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mb-4">
-                <svg className="w-6 h-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <div className="text-center py-16">
+              <div className="inline-flex p-4 bg-red-500/20 rounded-full mb-4">
+                <svg className="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <p className="text-red-400 text-sm font-medium">{error}</p>
+              <p className="text-red-400 font-bold mb-4">{error}</p>
               <button 
                 onClick={onClose}
-                className="mt-4 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition text-white/90"
+                className="px-6 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl transition font-bold"
               >
-                Close
+                CLOSE
               </button>
             </div>
           ) : analysis ? (
-            <>
-              <div className="p-6 bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 rounded-2xl">
-                <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-                  <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  Policy Summary
+            <div className="space-y-8">
+              {/* Overview */}
+              <section className="p-6 bg-zinc-900/50 border-2 border-zinc-800 rounded-2xl">
+                <h3 className="text-xl font-black text-white mb-6 flex items-center gap-3">
+                  <span className="w-1 h-6 bg-gradient-to-b from-emerald-400 to-teal-500 rounded-full" />
+                  OVERVIEW
                 </h3>
-                <p className="text-white/80 leading-relaxed">{analysis.plain_english_summary}</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {analysis.financial_impacts && analysis.financial_impacts.length > 0 && (
-                  <DetailSection title="💰 Financial Impacts" items={analysis.financial_impacts} />
-                )}
-                {analysis.environmental_impacts && analysis.environmental_impacts.length > 0 && (
-                  <DetailSection title="🌍 Environmental Impacts" items={analysis.environmental_impacts} />
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {analysis.certainties && analysis.certainties.length > 0 && (
-                  <DetailSection title="✅ What's Certain" items={analysis.certainties} color="emerald" />
-                )}
-                {analysis.uncertainties && analysis.uncertainties.length > 0 && (
-                  <DetailSection title="❓ What's Uncertain" items={analysis.uncertainties} color="amber" />
-                )}
-              </div>
-
-              {analysis.who_qualifies && analysis.who_qualifies.length > 0 && (
-                <DetailSection title="✓ Who Qualifies" items={analysis.who_qualifies} />
-              )}
-
-              {analysis.action_steps && analysis.action_steps.length > 0 && (
-                <div className="p-6 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 rounded-2xl">
-                  <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                    <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                    </svg>
-                    Action Steps
-                  </h3>
-                  <ul className="space-y-2">
-                    {analysis.action_steps.map((step, i) => (
-                      <li key={i} className="text-sm text-white/90 flex gap-3">
-                        <span className="text-emerald-400 font-semibold shrink-0">{i + 1}.</span>
-                        <span>{step}</span>
-                      </li>
+                <p className="text-white/90 leading-relaxed mb-6">{analysis.overview.plain_english_summary}</p>
+                {analysis.overview.key_provisions.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-black text-zinc-400 tracking-wide mb-3">KEY PROVISIONS</h4>
+                    {analysis.overview.key_provisions.map((item, i) => (
+                      <div key={i} className="flex gap-3 text-sm text-zinc-300">
+                        <span className="text-emerald-400 font-bold">→</span>
+                        <span>{item}</span>
+                      </div>
                     ))}
-                  </ul>
-                </div>
-              )}
+                  </div>
+                )}
+              </section>
 
-              {analysis.questions_to_ask && analysis.questions_to_ask.length > 0 && (
-                <DetailSection title="💬 Questions to Ask" items={analysis.questions_to_ask} />
+              {/* Financial & Climate side by side */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <section className="p-6 bg-emerald-500/5 border-2 border-emerald-500/20 rounded-2xl">
+                  <h3 className="text-xl font-black text-emerald-400 mb-6">💰 FINANCIAL IMPACT</h3>
+                  {analysis.personalized_financial_analysis.direct_benefits.length > 0 && (
+                    <div className="space-y-3 mb-6">
+                      {analysis.personalized_financial_analysis.direct_benefits.map((item, i) => (
+                        <div key={i} className="flex gap-2 text-sm text-white">
+                          <span className="text-emerald-400 font-bold">→</span>
+                          <span>{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {analysis.personalized_financial_analysis.estimated_value && (
+                    <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl">
+                      <div className="text-xs font-black text-emerald-400 mb-1">ESTIMATED VALUE</div>
+                      <div className="text-sm text-white">{analysis.personalized_financial_analysis.estimated_value}</div>
+                    </div>
+                  )}
+                </section>
+
+                <section className="p-6 bg-teal-500/5 border-2 border-teal-500/20 rounded-2xl">
+                  <h3 className="text-xl font-black text-teal-400 mb-6">🌍 CLIMATE IMPACT</h3>
+                  {analysis.personalized_climate_analysis.environmental_benefits.length > 0 && (
+                    <div className="space-y-3 mb-6">
+                      {analysis.personalized_climate_analysis.environmental_benefits.map((item, i) => (
+                        <div key={i} className="flex gap-2 text-sm text-white">
+                          <span className="text-teal-400 font-bold">→</span>
+                          <span>{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {analysis.personalized_climate_analysis.scale_and_scope && (
+                    <div className="p-4 bg-teal-500/10 border border-teal-500/30 rounded-xl">
+                      <div className="text-xs font-black text-teal-400 mb-1">SCALE & SCOPE</div>
+                      <div className="text-sm text-white">{analysis.personalized_climate_analysis.scale_and_scope}</div>
+                    </div>
+                  )}
+                </section>
+              </div>
+
+              {/* Action Plan */}
+              {analysis.action_plan.immediate_steps.length > 0 && (
+                <section className="p-6 bg-blue-500/5 border-2 border-blue-500/20 rounded-2xl">
+                  <h3 className="text-xl font-black text-blue-400 mb-6">⚡ ACTION PLAN</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {analysis.action_plan.immediate_steps.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-black text-blue-400 mb-3">IMMEDIATE</h4>
+                        <div className="space-y-2">
+                          {analysis.action_plan.immediate_steps.map((step, i) => (
+                            <div key={i} className="flex gap-2 text-sm text-white">
+                              <span className="text-blue-400 font-black">{i + 1}.</span>
+                              <span>{step}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {analysis.action_plan.medium_term_steps.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-black text-cyan-400 mb-3">MEDIUM-TERM</h4>
+                        <div className="space-y-2">
+                          {analysis.action_plan.medium_term_steps.map((step, i) => (
+                            <div key={i} className="flex gap-2 text-sm text-white">
+                              <span className="text-cyan-400 font-black">{i + 1}.</span>
+                              <span>{step}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {analysis.action_plan.long_term_considerations.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-black text-teal-400 mb-3">LONG-TERM</h4>
+                        <div className="space-y-2">
+                          {analysis.action_plan.long_term_considerations.map((item, i) => (
+                            <div key={i} className="flex gap-2 text-sm text-white">
+                              <span className="text-teal-400 font-bold">→</span>
+                              <span>{item}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </section>
               )}
-            </>
+            </div>
           ) : null}
         </div>
-      </div>
-    </div>
-  );
-}
-
-function DetailSection({ title, items, color }: { title: string; items: string[]; color?: string }) {
-  if (!items?.length) return null;
-  
-  const colorClasses = {
-    emerald: 'bg-emerald-500/10 border-emerald-500/20',
-    amber: 'bg-amber-500/10 border-amber-500/20',
-    default: 'bg-white/5 border-white/10'
-  };
-
-  const bgClass = color ? colorClasses[color as keyof typeof colorClasses] || colorClasses.default : colorClasses.default;
-
-  return (
-    <div className={`p-5 border rounded-2xl ${bgClass}`}>
-      <h4 className="font-semibold text-white mb-3">{title}</h4>
-      <ul className="space-y-2">
-        {items.map((item, i) => (
-          <li key={i} className="text-sm text-white/80 flex gap-2">
-            <span className="text-emerald-400 shrink-0 mt-1.5">•</span>
-            <span>{item}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function AboutSection() {
-  return (
-    <div className="mt-8 p-6 bg-white/5 border border-white/10 rounded-2xl">
-      <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-        <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        About This Tool
-      </h3>
-      <div className="space-y-3 text-sm text-white/70">
-        <p>
-          <strong className="text-white/90">Climate Impact Compass</strong> was created by <strong className="text-emerald-400">Leo Levitt</strong>, 
-          combining environmental commitment with analytical rigor to make climate policy actionable.
-        </p>
-        <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-          <p className="text-white/80 leading-relaxed">
-            <strong className="text-emerald-400">Philosophy:</strong> Climate action requires both urgency and precision. 
-            This tool uses evidence-based scoring frameworks to quantify what matters: the financial impact on your life and 
-            the measurable environmental benefit to our planet. Every score is transparent, data-driven, and designed to help you 
-            make informed decisions about climate policies.
-          </p>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="p-3 bg-white/5 rounded-lg">
-            <div className="text-emerald-400 font-medium mb-1">Personal Impact Score (0-10)</div>
-            <div className="text-xs">Quantifies direct financial benefits based on available incentives, your housing situation, upgrade capability, and decision timeline.</div>
-          </div>
-          <div className="p-3 bg-white/5 rounded-lg">
-            <div className="text-teal-400 font-medium mb-1">Climate Impact Score (0-10)</div>
-            <div className="text-xs">Measures environmental benefit through emissions reduction, renewable energy expansion, and climate resilience metrics.</div>
-          </div>
-        </div>
-        <p className="text-xs text-white/50 italic">
-          All scoring methodologies are transparent.
-          This tool processes your data locally and never stores personal information.
-        </p>
       </div>
     </div>
   );
@@ -905,123 +736,89 @@ export default function Page() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 text-white">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(16,185,129,0.15),transparent_50%),radial-gradient(ellipse_at_bottom_left,rgba(20,184,166,0.12),transparent_50%)]" />
-
+    <div className="min-h-screen bg-zinc-950 text-white">
+      <GeometricPattern />
+      
       {step === 'form' ? (
-        <div className="relative min-h-screen flex items-center justify-center p-4">
+        <div className="relative min-h-screen flex items-center justify-center p-6">
           <div className="w-full max-w-5xl">
-            <div className="mb-8 text-center">
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/10 border border-blue-500/20 rounded-full mb-4">
-                <svg className="w-4 h-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            {/* Header */}
+            <div className="mb-12 text-center">
+              <div className="inline-flex items-center gap-3 px-5 py-2.5 bg-blue-500/10 border-2 border-blue-400/30 rounded-full mb-8">
+                <svg className="w-5 h-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                 </svg>
-                <span className="text-xs font-medium text-blue-400">Currently Available for Connecticut Residents</span>
+                <span className="text-sm font-black text-blue-300 tracking-wide">CONNECTICUT ONLY</span>
               </div>
-              <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
-                Climate Impact Compass
+              
+              <h1 className="text-7xl font-black mb-6 bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 bg-clip-text text-transparent leading-none tracking-tighter">
+                CLIMATE<br/>IMPACT<br/>COMPASS
               </h1>
-              <p className="text-white/70 text-lg mb-2">
-                Discover climate policies that benefit both you and the planet
-              </p>
-              <p className="text-white/50 text-sm">
-                Created by <span className="text-emerald-400 font-medium">Leo Levitt</span> • Analytical framework for actionable climate policy
+              
+              <p className="text-zinc-400 text-lg mb-3 font-bold">
+                Evidence-based policy analysis by <span className="text-emerald-400">Leo Levitt</span>
               </p>
             </div>
-            <div className="p-8 bg-white/5 border border-white/10 rounded-3xl backdrop-blur-xl">
+            
+            <div className="p-10 bg-zinc-900/50 border-2 border-zinc-800 rounded-3xl backdrop-blur-xl">
               <UserProfileForm onSubmit={handleSubmit} loading={loading} />
             </div>
-            <AboutSection />
+
+            <div className="mt-8 p-6 bg-zinc-900/30 border-2 border-zinc-800 rounded-2xl">
+              <p className="text-sm text-zinc-500 text-center">
+                <span className="font-black text-white">METHODOLOGY:</span> Dual-impact scoring measures both personal financial benefit and climate impact (including indirect effects like barrier removal and market acceleration). All analysis uses transparent AI frameworks with strict no-hallucination safeguards.
+              </p>
+            </div>
           </div>
         </div>
       ) : (
-        <div className="relative p-8">
+        <div className="relative p-6 md:p-10">
           <div className="max-w-7xl mx-auto">
-            <div className="mb-8">
-              <div className="flex items-center justify-between mb-4">
+            <div className="mb-10">
+              <div className="flex items-center justify-between mb-8">
                 <div>
-                  <h1 className="text-4xl font-bold text-white mb-2">Your Connecticut Climate Policy Analysis</h1>
-                  <p className="text-white/70">
-                    {bills.length} {bills.length === 1 ? 'policy' : 'policies'} found with measurable impact • 
-                    Sorted by personal benefit
+                  <h1 className="text-5xl font-black text-white mb-3 tracking-tight">
+                    YOUR POLICIES
+                  </h1>
+                  <p className="text-zinc-500 text-lg font-bold">
+                    {bills.length} {bills.length === 1 ? 'policy' : 'policies'} • Sorted by impact
                   </p>
                 </div>
+                
                 <button
-                  onClick={() => {
-                    setStep('form');
-                    setSelectedBill(null);
-                  }}
-                  className="px-6 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition text-white/90 flex items-center gap-2"
+                  onClick={() => { setStep('form'); setSelectedBill(null); }}
+                  className="px-6 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl transition font-black border-2 border-zinc-700"
                 >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                  </svg>
-                  Change Profile
+                  ← CHANGE PROFILE
                 </button>
               </div>
 
-              <div className="p-4 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 rounded-xl">
-                <div className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-emerald-400 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                  </svg>
-                  <div className="flex-1">
-                    <div className="text-sm text-white/90 font-medium mb-1">Scoring Methodology</div>
-                    <div className="text-xs text-white/70 space-y-1">
-                      <p>
-                        <strong className="text-emerald-400">Personal Impact (0-10):</strong> Quantifies your financial benefit based on available incentives, 
-                        housing status, upgrade capability, and decision timeline.
-                      </p>
-                      <p>
-                        <strong className="text-teal-400">Climate Impact (0-10):</strong> Measures environmental benefit through emissions reduction, 
-                        renewable energy expansion, and climate resilience. Lower scores indicate policies that may harm climate goals.
-                      </p>
-                    </div>
-                  </div>
-                </div>
+              <div className="p-6 bg-zinc-900/50 border-2 border-zinc-800 rounded-2xl">
+                <p className="text-sm text-zinc-400">
+                  <span className="font-black text-white">SCORING:</span> Personal impact measures YOUR financial benefit. 
+                  Climate impact now recognizes indirect benefits (barrier removal, market acceleration, workforce development) 
+                  in addition to direct emissions reductions.
+                </p>
               </div>
             </div>
 
             {bills.length > 0 ? (
-              <div className="grid grid-cols-1 gap-4">
+              <div className="space-y-6">
                 {bills.map((bill) => (
-                  <BillCard
-                    key={bill.id}
-                    bill={bill}
-                    onClick={() => setSelectedBill(bill)}
-                  />
+                  <BillCard key={bill.id} bill={bill} onClick={() => setSelectedBill(bill)} />
                 ))}
               </div>
             ) : (
-              <div className="text-center py-12">
-                <svg className="w-16 h-16 text-white/30 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <p className="text-white/60">No policies found for your location and profile.</p>
-                <p className="text-white/40 text-sm mt-2">Try adjusting your profile or check back later for new policies.</p>
+              <div className="text-center py-20">
+                <p className="text-zinc-500 text-lg font-bold">No policies found for your profile</p>
               </div>
             )}
-
-            <div className="mt-8 p-6 bg-white/5 border border-white/10 rounded-2xl text-center">
-              <p className="text-sm text-white/60">
-                Powered by <span className="text-emerald-400 font-medium">Climate Impact Compass</span> • 
-                Created by Leo Levitt
-              </p>
-              <p className="text-xs text-white/40 mt-2">
-                Analytical framework combining environmental science, energy economics, and policy analysis
-              </p>
-            </div>
           </div>
         </div>
       )}
 
       {selectedBill && userProfile && (
-        <BillDetailModal
-          bill={selectedBill}
-          onClose={() => setSelectedBill(null)}
-          userProfile={userProfile}
-        />
+        <BillDetailModal bill={selectedBill} onClose={() => setSelectedBill(null)} userProfile={userProfile} />
       )}
     </div>
   );
