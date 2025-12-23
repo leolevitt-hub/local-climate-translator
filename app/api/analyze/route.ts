@@ -273,7 +273,7 @@ Personal scoring rubric (granular, optimistic-but-defensible):
 - 9.00–10.00 only for extremely clear, high-value user-specific benefits.
 
 Rules:
-- Don’t punish missing dollar amounts if mechanism and eligibility are clear.
+- Don't punish missing dollar amounts if mechanism and eligibility are clear.
 - DO punish discretionary/vague language (may, consider, study with no funding).
 - Use the provided hints as weak priors only (they can be wrong).
 - Provide up to 3 short reasons for personal and climate each.
@@ -549,52 +549,111 @@ async function analyzeBill(billId: string, userProfile: UserProfile): Promise<Ne
 
     const bill = await db.policy.findUnique({
       where: { id: billId },
-      include: { tags: { select: { tag: true } } },
+      include: { 
+        tags: { select: { tag: true } },
+        sources: {
+          select: { url: true, name: true, sourceType: true }
+        }
+      },
     });
 
-    if (!bill) return NextResponse.json({ error: "Bill not found" }, { status: 404 });
+    if (!bill) {
+      console.error(`[ANALYZE_BILL] Bill not found: ${billId}`);
+      return NextResponse.json({ error: "Bill not found" }, { status: 404 });
+    }
+
+    console.log(`[ANALYZE_BILL] Found bill: ${bill.title}`);
 
     const openai = getOpenAIClient();
     const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
     const systemPrompt = `You are Climate Impact Compass, an analytical policy tool created by Leo Levitt.
-Return strict JSON only. Do not invent dollar amounts or emissions numbers unless supported by the provided text.`;
 
-    const userPrompt = `Analyze this bill for this user.
+Your job is to provide actionable, specific analysis for a real person about a specific policy bill.
+
+Return ONLY valid JSON. No markdown, no prose outside the JSON structure.
+
+Be specific about:
+- Financial mechanisms (rebates, tax credits, financing, bill relief)
+- Environmental consequences (emissions reductions, adaptation measures)
+- Eligibility criteria
+- Action steps
+- Uncertainties
+
+Do not invent dollar amounts or emissions numbers unless they are explicitly stated in the bill text.
+Be honest about what is certain vs. uncertain.
+Focus on practical, actionable information.`;
+
+    const userPrompt = `Analyze this bill for this specific user profile.
 
 USER PROFILE:
 - Location: ${userProfile.zip}, ${userProfile.state}
 - Housing: ${userProfile.housing_status} in ${userProfile.property_type}
 - Home age: ${userProfile.home_age}
-- Heating: ${userProfile.current_heating}
-- Can upgrade: ${userProfile.can_make_upgrades}
+- Current heating: ${userProfile.current_heating}
+- Can make upgrades: ${userProfile.can_make_upgrades}
 - Solar interest: ${userProfile.interested_in_solar}
-- Car: ${userProfile.has_car}
-- Commute: ${userProfile.commute_distance}
+- Has car: ${userProfile.has_car}
+- Commute distance: ${userProfile.commute_distance}
 - Next vehicle timeline: ${userProfile.next_vehicle_timeline}
 - Income: ${userProfile.household_income}
 - Household size: ${userProfile.household_size}
 - Business owner: ${userProfile.own_business}
 - Job sector: ${userProfile.job_sector || "Not specified"}
 
-BILL:
+BILL TO ANALYZE:
 Title: ${bill.title}
 Status: ${bill.status}
 Summary: ${bill.summary || "No summary provided"}
 Tags: ${bill.tags.map((t) => t.tag).join(", ")}
 Jurisdiction: ${bill.jurisdictionName}
+Date Introduced: ${bill.dateIntroduced?.toISOString().split('T')[0] || "Unknown"}
 
-Output JSON:
+Provide analysis in this EXACT JSON structure:
 {
-  "plain_english_summary": "2-3 sentences",
-  "what_is_certain": ["facts supported by title/summary/tags"],
-  "what_is_uncertain": ["implementation-dependent items"],
-  "personal_benefits": ["mechanisms: rebates/credits/bill relief/financing/eligibility"],
-  "climate_impacts": ["mitigation/adaptation impacts; be conservative if unclear"],
-  "who_qualifies": ["eligibility signals if present"],
-  "next_steps": ["3 concrete steps"],
-  "questions_to_ask": ["3 questions for utility/agency/contractor"]
+  "plain_english_summary": "2-3 clear sentences explaining what this bill does",
+  "financial_impacts": [
+    "List specific financial mechanisms like rebates, tax credits, bill relief, financing programs",
+    "Include eligibility requirements if stated",
+    "Note any income limits, property requirements, or other qualifiers",
+    "Be specific about what financial benefits exist"
+  ],
+  "environmental_impacts": [
+    "List specific environmental consequences",
+    "Include emissions reductions if stated",
+    "Note climate adaptation or resilience measures",
+    "Explain environmental mechanisms clearly"
+  ],
+  "who_qualifies": [
+    "List specific eligibility criteria",
+    "Include income requirements, property types, or geographic limits",
+    "Note if eligibility is unclear or broad",
+    "Explain any application requirements"
+  ],
+  "certainties": [
+    "List what is definitely established by the bill",
+    "Include specific provisions, funding amounts, deadlines",
+    "Note what mechanisms are clearly defined"
+  ],
+  "uncertainties": [
+    "List what depends on future implementation",
+    "Note what requires regulatory clarification",
+    "Identify what is conditional or discretionary",
+    "Flag missing information"
+  ],
+  "action_steps": [
+    "Step 1: Specific, actionable first step",
+    "Step 2: Specific, actionable second step",
+    "Step 3: Specific, actionable third step"
+  ],
+  "questions_to_ask": [
+    "Question 1: Specific question for utility/agency/contractor",
+    "Question 2: Specific question for utility/agency/contractor",
+    "Question 3: Specific question for utility/agency/contractor"
+  ]
 }`;
+
+    console.log(`[ANALYZE_BILL] Sending request to OpenAI...`);
 
     const response = await openai.chat.completions.create({
       model,
@@ -607,23 +666,68 @@ Output JSON:
     });
 
     const rawContent = response.choices?.[0]?.message?.content ?? "";
+    console.log(`[ANALYZE_BILL] Received response from OpenAI (${rawContent.length} chars)`);
+
     let analysis: any = null;
 
     try {
       analysis = JSON.parse(rawContent);
-    } catch {
+      console.log(`[ANALYZE_BILL] Successfully parsed JSON response`);
+    } catch (parseError) {
+      console.log(`[ANALYZE_BILL] Initial parse failed, attempting to extract JSON...`);
       const start = rawContent.indexOf("{");
       const end = rawContent.lastIndexOf("}");
-      if (start !== -1 && end !== -1) analysis = JSON.parse(rawContent.slice(start, end + 1));
+      if (start !== -1 && end !== -1) {
+        try {
+          analysis = JSON.parse(rawContent.slice(start, end + 1));
+          console.log(`[ANALYZE_BILL] Successfully extracted and parsed JSON`);
+        } catch (extractError) {
+          console.error(`[ANALYZE_BILL] Failed to extract JSON:`, extractError);
+        }
+      }
     }
 
-    if (!analysis) return NextResponse.json({ error: "AI returned invalid response" }, { status: 502 });
+    if (!analysis) {
+      console.error(`[ANALYZE_BILL] Could not parse AI response as JSON`);
+      return NextResponse.json({ 
+        error: "AI returned invalid response",
+        details: "Could not parse response as JSON"
+      }, { status: 502 });
+    }
 
-    console.log(`[ANALYZE_BILL] Analysis complete\n`);
-    return NextResponse.json({ analysis });
+    // Ensure all required fields exist with defaults
+    const safeAnalysis = {
+      plain_english_summary: analysis.plain_english_summary || "Analysis unavailable",
+      financial_impacts: Array.isArray(analysis.financial_impacts) ? analysis.financial_impacts : [],
+      environmental_impacts: Array.isArray(analysis.environmental_impacts) ? analysis.environmental_impacts : [],
+      who_qualifies: Array.isArray(analysis.who_qualifies) ? analysis.who_qualifies : [],
+      certainties: Array.isArray(analysis.certainties) ? analysis.certainties : [],
+      uncertainties: Array.isArray(analysis.uncertainties) ? analysis.uncertainties : [],
+      action_steps: Array.isArray(analysis.action_steps) ? analysis.action_steps : [],
+      questions_to_ask: Array.isArray(analysis.questions_to_ask) ? analysis.questions_to_ask : []
+    };
+
+    console.log(`[ANALYZE_BILL] Analysis complete, returning response\n`);
+    
+    return NextResponse.json({ 
+      analysis: safeAnalysis,
+      bill: {
+        id: bill.id,
+        title: bill.title,
+        status: bill.status,
+        jurisdictionName: bill.jurisdictionName,
+        dateIntroduced: bill.dateIntroduced?.toISOString() || null,
+        sources: bill.sources
+      }
+    });
   } catch (error: any) {
     console.error("[ANALYZE_BILL] Error:", error);
-    return NextResponse.json({ error: "Failed to analyze bill", details: error.message }, { status: 500 });
+    console.error("[ANALYZE_BILL] Stack trace:", error.stack);
+    return NextResponse.json({ 
+      error: "Failed to analyze bill", 
+      details: error.message,
+      billId: billId
+    }, { status: 500 });
   }
 }
 
@@ -634,6 +738,8 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
+    console.log(`[REQUEST] Received mode: ${body.mode}`);
+    
     const userProfile = normalizeInput(body);
     const mode = body.mode || "find_bills";
 
@@ -642,16 +748,22 @@ export async function POST(req: Request) {
     if (mode === "find_bills") {
       response = await findRelevantBills(userProfile);
     } else if (mode === "analyze_bill") {
-      if (!body.billId) return NextResponse.json({ error: "billId required" }, { status: 400 });
+      if (!body.billId) {
+        console.error(`[REQUEST] Missing billId for analyze_bill mode`);
+        return NextResponse.json({ error: "billId required for analyze_bill mode" }, { status: 400 });
+      }
+      console.log(`[REQUEST] Analyzing bill: ${body.billId}`);
       response = await analyzeBill(String(body.billId), userProfile);
     } else {
+      console.error(`[REQUEST] Invalid mode: ${mode}`);
       return NextResponse.json({ error: `Invalid mode: ${mode}` }, { status: 400 });
     }
 
-    console.log(`✓ Completed in ${Date.now() - startTime}ms\n`);
+    console.log(`✓ Request completed in ${Date.now() - startTime}ms\n`);
     return response;
   } catch (error: any) {
-    console.error(`✗ Failed:`, error.message);
+    console.error(`✗ Request failed:`, error.message);
+    console.error(`✗ Stack trace:`, error.stack);
     return NextResponse.json(
       {
         error: "Internal server error",
