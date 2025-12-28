@@ -33,7 +33,7 @@ function getDatabaseClient(): PrismaClient {
 
 function getOpenAIClient(): OpenAI {
   if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY environment variable is missing");
-  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 2, timeout: 60000 });
+  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 2, timeout: 180000 }); // 3 minutes
 }
 
 type UserProfile = {
@@ -529,81 +529,148 @@ async function analyzeBill(billId: string, userProfile: UserProfile): Promise<Ne
 
     console.log(`[ANALYZE_BILL] Found bill: ${bill.title}`);
 
+    // First, get the scoring for this bill to ensure consistency
+    const tags = bill.tags.map((t) => t.tag);
+    const text = joinLowercase(bill.title, bill.summary);
+    const { climateHint, personalHint } = computeHints(tags, text);
+
     const openai = getOpenAIClient();
     const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
+    // Get the original scores for this bill to ensure analysis aligns with ratings
+    let billScores: AIResult | null = null;
+    try {
+      const scoringResult = await aiScoreBillsBatch(openai, model, userProfile, [{
+        id: bill.id,
+        title: bill.title,
+        summary: bill.summary || "",
+        tags,
+        climateHint,
+        personalHint
+      }]);
+      billScores = scoringResult[bill.id] || null;
+      console.log(`[ANALYZE_BILL] Retrieved scores - Personal: ${billScores?.personalScore}, Climate: ${billScores?.climateScore} (${billScores?.climateDirection})`);
+    } catch (e) {
+      console.warn("[ANALYZE_BILL] Could not fetch scores, proceeding without them:", e);
+    }
+
     const systemPrompt = `You are Climate Impact Compass, an expert policy analyst created by Leo Levitt.
 
-Your role is to provide COMPREHENSIVE, RIGOROUS, PERSONALIZED analysis of climate policy bills.
+Provide DETAILED, HYPER-PERSONALIZED analysis for everyday citizens. Write in simple, clear language.
 
-CRITICAL RULES - NO HALLUCINATION:
-1. Base ALL analysis STRICTLY on the bill text provided
-2. If specific numbers (dollar amounts, percentages, timelines) are NOT in the bill text, say "Not specified in bill text"
-3. Do NOT invent or estimate: dollar amounts, income limits, deadlines, program names, or agency names
-4. When uncertain, say "Depends on implementation" or "Not clear from bill text"
-5. Always distinguish between what the bill DEFINITELY does vs. what MIGHT happen
+${billScores ? `CRITICAL - ALIGNMENT WITH SCORES:
+Personal: ${billScores.personalScore}/10 (${getPersonalScoreLabel(billScores.personalScore)})
+Climate: ${billScores.climateScore}/10 ${billScores.climateDirection} (${getClimateScoreLabel(billScores.climateScore, billScores.climateDirection)})
+Your analysis MUST align with these scores. Don't contradict them.
+` : ''}
 
-IMPROVED CLIMATE IMPACT ANALYSIS:
-- Recognize INDIRECT climate benefits (barrier removal, market acceleration, workforce development)
-- Consider that policies enabling clean energy adoption ARE climate positive
-- Evaluate POTENTIAL emissions impact from increased clean energy deployment
-- Account for market transformation effects
+RULES:
+1. Base analysis ONLY on bill text provided - no hallucinations
+2. If dollar amounts/dates not in bill, say "Not specified"
+3. Be hyper-specific to THIS user: ${userProfile.housing_status} in ${userProfile.property_type}, ZIP ${userProfile.zip}, income ${userProfile.household_income}
+4. Reference specific cities/regions in ${userProfile.state}
+5. Provide 6-10 items per major section
+6. Use concrete examples: "Like a $500 Home Depot rebate"
+7. Translate jargon: "heating system (HVAC)" not "HVAC"
 
-PERSONALIZATION REQUIREMENTS:
-- Use the user's SPECIFIC profile details in your analysis
-- Reference their ZIP code, housing situation, income range, vehicle status, etc.
-- Explain how THEIR SPECIFIC circumstances affect eligibility and benefit
-- Use their location (${userProfile.zip}, ${userProfile.state}) when discussing local impacts
-
-DEPTH REQUIREMENTS:
-- Provide 4-6 items per section (not just 2-3)
-- Include specific mechanisms, not vague statements
-- Consider both immediate and long-term implications
-- Think through implementation challenges
-
-OUTPUT ONLY VALID JSON in this exact structure:
+OUTPUT STRICT JSON:
 {
   "overview": {
-    "plain_english_summary": "3-4 sentences explaining what this bill does in clear language",
-    "key_provisions": ["List 4-6 main things this bill establishes or changes"],
-    "timeline": "When this takes effect and key deadlines (or 'Not specified')",
-    "implementation_status": "Current status and what needs to happen next"
+    "plain_english_summary": "5-6 sentences, simple language, concrete examples for ${userProfile.state}",
+    "what_this_means_for_you": "4-5 sentences for THIS user's exact situation",
+    "key_provisions": ["8-10 detailed provisions"],
+    "timeline_and_status": {
+      "current_status": "string",
+      "when_it_takes_effect": "string",
+      "key_deadlines": ["array"],
+      "what_needs_to_happen_next": "string"
+    }
   },
-  "personalized_financial_analysis": {
-    "direct_benefits": ["4-6 specific financial benefits for THIS user based on their profile"],
-    "eligibility_factors": ["How THIS user's specific situation affects eligibility"],
-    "estimated_value": "Range of potential savings (or 'Cannot estimate from bill text')",
-    "access_pathway": ["3-4 specific steps THIS user would take"],
-    "barriers": ["2-3 potential obstacles THIS user might face"]
+  "your_specific_situation": {
+    "relevance_to_you": "3-4 sentences",
+    "provisions_that_apply_to_you": ["6-8 items referencing their profile"],
+    "provisions_that_dont_apply": ["3-4 items"],
+    "your_best_opportunities": ["4-5 ranked opportunities"],
+    "your_biggest_barriers": ["3-4 barriers"]
   },
-  "personalized_climate_analysis": {
-    "environmental_benefits": ["4-5 specific climate/environmental outcomes, INCLUDING indirect effects"],
-    "local_impact": ["How this affects their area specifically"],
-    "personal_contribution": ["How THIS user's participation would contribute"],
-    "scale_and_scope": "How significant is the climate impact"
+  "financial_impact_for_you": {
+    "bottom_line": "3-4 sentences",
+    "specific_benefits_for_your_situation": ["8-10 benefits with dollar amounts when possible"],
+    "how_you_qualify": ["6-8 criteria checked against their profile"],
+    "estimated_savings_range": "string",
+    "breakdown_by_provision": ["6-8 items: each provision's financial impact"],
+    "how_to_actually_get_the_money": ["6-8 actionable steps"],
+    "potential_obstacles": ["5-6 realistic barriers"],
+    "upfront_costs": "string"
   },
-  "detailed_requirements": {
-    "who_qualifies": ["4-5 specific eligibility criteria"],
-    "documentation_needed": ["What THIS user would need to provide"],
-    "income_limits": "Specific limits if stated, or 'Not specified'",
-    "other_restrictions": ["Geographic, property, or timing restrictions"]
+  "environmental_impact_explained": {
+    "what_this_means_for_climate": "4-5 sentences in simple terms",
+    "local_environmental_benefits": ["7-8 tangible impacts in ${userProfile.state}, mention cities"],
+    "if_you_participate_personally": ["6-7 items with comparisons"],
+    "bigger_picture": "3-4 sentences",
+    "why_this_matters_for_your_community": ["5-6 local benefits"],
+    "state_and_regional_context": ["4-5 items about ${userProfile.state} climate goals"]
   },
-  "certainties_and_uncertainties": {
-    "what_is_certain": ["4-5 things definitely established"],
-    "what_depends_on_implementation": ["3-4 things requiring future decisions"],
-    "missing_information": ["2-3 key details not in bill"],
-    "risks_and_caveats": ["2-3 potential issues or limitations"]
+  "detailed_bill_provisions": {
+    "provision_by_provision_analysis": ["6-8 provisions with: what it does, impact on THIS user, dollars, example"],
+    "which_parts_matter_most_to_you": ["4-5 ranked provisions"],
+    "implementation_mechanisms": ["4-5 how it's implemented"],
+    "funding_sources": ["3-4 where money comes from"]
   },
-  "action_plan": {
-    "immediate_steps": ["3 actions THIS user can take now"],
-    "medium_term_steps": ["2-3 actions for next 3-6 months"],
-    "long_term_considerations": ["2 strategic considerations"],
-    "questions_to_ask": ["5-6 specific questions for utilities/contractors/agencies"]
+  "eligibility_and_requirements": {
+    "who_this_is_for": ["8-10 specific eligible situations"],
+    "who_this_is_NOT_for": ["4-5 ineligible situations"],
+    "your_eligibility_assessment": ["5-6 checks against THIS user's profile"],
+    "documentation_youll_need": ["7-8 specific documents"],
+    "income_requirements": "string with comparison to user's income",
+    "property_requirements": ["array"],
+    "timing_requirements": ["array"],
+    "special_considerations": ["4-5 exceptions"]
   },
-  "local_context": {
-    "local_programs": ["Existing programs this connects to (only if known)"],
-    "local_considerations": ["2-3 factors specific to their area"],
-    "community_resources": ["Where to get help in their area"]
+  "what_we_know_and_dont_know": {
+    "definitely_established": ["8-10 certain facts"],
+    "still_to_be_determined": ["6-8 unknowns"],
+    "potential_risks_and_downsides": ["6-7 honest risks for THIS user"],
+    "questions_nobody_can_answer_yet": ["5-6 unknowns"],
+    "what_to_watch_for": ["4-5 monitoring items"]
+  },
+  "your_action_plan": {
+    "do_this_now": ["5-6 immediate actions"],
+    "do_this_soon": ["6-7 next 3-6 months"],
+    "plan_for_later": ["4-5 long-term"],
+    "questions_to_ask": {
+      "ask_your_utility_company": ["5-6 questions"],
+      "ask_contractors": ["5-6 questions"],
+      "ask_your_state_agency": ["5-6 questions"]
+    },
+    "resources_and_help": ["6-7 ${userProfile.state} resources"],
+    "decision_framework": ["4-5 key decision factors"]
+  },
+  "real_world_context": {
+    "similar_programs": ["4-5 if known"],
+    "what_makes_this_different": ["3-4 differences"],
+    "potential_challenges": ["6-7 realistic challenges in ${userProfile.state}"],
+    "success_factors": ["5-6 success factors"],
+    "lessons_from_other_states": ["3-4 if applicable"]
+  },
+  "local_and_regional_impact": {
+    "cities_and_regions_affected": ["6-7 specific places in ${userProfile.state}"],
+    "your_area_specifically": ["5-6 impacts near ZIP ${userProfile.zip}"],
+    "urban_vs_rural": "string",
+    "local_economic_impact": ["4-5 economic effects"],
+    "community_benefits": ["4-5 community benefits"]
+  },
+  "common_questions_answered": {
+    "is_this_a_tax_increase": "detailed answer for income ${userProfile.household_income}",
+    "do_i_have_to_do_anything": "detailed answer",
+    "what_if_i_rent": "answer for ${userProfile.housing_status}",
+    "what_if_im_low_income": "answer comparing to ${userProfile.household_income}",
+    "what_if_i_own_a_business": "answer (user: ${userProfile.own_business})",
+    "how_long_does_this_take": "realistic timeline",
+    "is_the_paperwork_complicated": "honest assessment",
+    "what_about_maintenance": "ongoing costs if applicable",
+    "can_i_combine_with_other_programs": "stacking in ${userProfile.state}",
+    "other_important_questions": ["5-6 bill-specific questions"]
   }
 }`;
 
@@ -631,13 +698,13 @@ Tags: ${bill.tags.map((t) => t.tag).join(", ")}
 Jurisdiction: ${bill.jurisdictionName}
 Date: ${bill.dateIntroduced?.toISOString().split('T')[0] || "Unknown"}
 
-Be thorough. Be specific. Don't hallucinate.`;
+Be thorough. Be specific. Don't hallucinate. Align with the scores provided.`;
 
     console.log(`[ANALYZE_BILL] Sending comprehensive analysis request...`);
 
     const response = await openai.chat.completions.create({
-      model,
-      temperature: 0.3,
+      model: "gpt-4o", // Use faster model for comprehensive analysis
+      temperature: 0.2, // Lower temperature for faster, more focused responses
       response_format: { type: "json_object" } as any,
       messages: [
         { role: "system", content: systemPrompt },
@@ -669,45 +736,152 @@ Be thorough. Be specific. Don't hallucinate.`;
     const safeAnalysis = {
       overview: {
         plain_english_summary: analysis.overview?.plain_english_summary || "Analysis unavailable",
+        what_this_means_for_you: analysis.overview?.what_this_means_for_you || "Unable to determine personal impact",
         key_provisions: Array.isArray(analysis.overview?.key_provisions) ? analysis.overview.key_provisions : [],
-        timeline: analysis.overview?.timeline || "Not specified",
-        implementation_status: analysis.overview?.implementation_status || "Status unclear"
+        timeline_and_status: {
+          current_status: analysis.overview?.timeline_and_status?.current_status || "Status unclear",
+          when_it_takes_effect: analysis.overview?.timeline_and_status?.when_it_takes_effect || "Not specified",
+          key_deadlines: Array.isArray(analysis.overview?.timeline_and_status?.key_deadlines) ? analysis.overview.timeline_and_status.key_deadlines : [],
+          what_needs_to_happen_next: analysis.overview?.timeline_and_status?.what_needs_to_happen_next || "Unknown"
+        },
+        // BACKWARD COMPATIBILITY
+        timeline: analysis.overview?.timeline_and_status?.when_it_takes_effect || "Not specified",
+        implementation_status: analysis.overview?.timeline_and_status?.current_status || "Status unclear"
       },
+      your_specific_situation: {
+        relevance_to_you: analysis.your_specific_situation?.relevance_to_you || "Relevance unclear",
+        provisions_that_apply_to_you: Array.isArray(analysis.your_specific_situation?.provisions_that_apply_to_you) ? analysis.your_specific_situation.provisions_that_apply_to_you : [],
+        provisions_that_dont_apply: Array.isArray(analysis.your_specific_situation?.provisions_that_dont_apply) ? analysis.your_specific_situation.provisions_that_dont_apply : [],
+        your_best_opportunities: Array.isArray(analysis.your_specific_situation?.your_best_opportunities) ? analysis.your_specific_situation.your_best_opportunities : [],
+        your_biggest_barriers: Array.isArray(analysis.your_specific_situation?.your_biggest_barriers) ? analysis.your_specific_situation.your_biggest_barriers : []
+      },
+      financial_impact_for_you: {
+        bottom_line: analysis.financial_impact_for_you?.bottom_line || "Financial impact unclear",
+        specific_benefits_for_your_situation: Array.isArray(analysis.financial_impact_for_you?.specific_benefits_for_your_situation) ? analysis.financial_impact_for_you.specific_benefits_for_your_situation : [],
+        how_you_qualify: Array.isArray(analysis.financial_impact_for_you?.how_you_qualify) ? analysis.financial_impact_for_you.how_you_qualify : [],
+        estimated_savings_range: analysis.financial_impact_for_you?.estimated_savings_range || "Cannot estimate",
+        breakdown_by_provision: Array.isArray(analysis.financial_impact_for_you?.breakdown_by_provision) ? analysis.financial_impact_for_you.breakdown_by_provision : [],
+        how_to_actually_get_the_money: Array.isArray(analysis.financial_impact_for_you?.how_to_actually_get_the_money) ? analysis.financial_impact_for_you.how_to_actually_get_the_money : [],
+        potential_obstacles: Array.isArray(analysis.financial_impact_for_you?.potential_obstacles) ? analysis.financial_impact_for_you.potential_obstacles : [],
+        upfront_costs: analysis.financial_impact_for_you?.upfront_costs || "Not specified"
+      },
+      // BACKWARD COMPATIBILITY
       personalized_financial_analysis: {
-        direct_benefits: Array.isArray(analysis.personalized_financial_analysis?.direct_benefits) ? analysis.personalized_financial_analysis.direct_benefits : [],
-        eligibility_factors: Array.isArray(analysis.personalized_financial_analysis?.eligibility_factors) ? analysis.personalized_financial_analysis.eligibility_factors : [],
-        estimated_value: analysis.personalized_financial_analysis?.estimated_value || "Cannot estimate",
-        access_pathway: Array.isArray(analysis.personalized_financial_analysis?.access_pathway) ? analysis.personalized_financial_analysis.access_pathway : [],
-        barriers: Array.isArray(analysis.personalized_financial_analysis?.barriers) ? analysis.personalized_financial_analysis.barriers : []
+        direct_benefits: Array.isArray(analysis.financial_impact_for_you?.specific_benefits_for_your_situation) ? analysis.financial_impact_for_you.specific_benefits_for_your_situation : [],
+        eligibility_factors: Array.isArray(analysis.financial_impact_for_you?.how_you_qualify) ? analysis.financial_impact_for_you.how_you_qualify : [],
+        estimated_value: analysis.financial_impact_for_you?.estimated_savings_range || "Cannot estimate",
+        access_pathway: Array.isArray(analysis.financial_impact_for_you?.how_to_actually_get_the_money) ? analysis.financial_impact_for_you.how_to_actually_get_the_money : [],
+        barriers: Array.isArray(analysis.financial_impact_for_you?.potential_obstacles) ? analysis.financial_impact_for_you.potential_obstacles : []
       },
+      environmental_impact_explained: {
+        what_this_means_for_climate: analysis.environmental_impact_explained?.what_this_means_for_climate || "Environmental impact unclear",
+        local_environmental_benefits: Array.isArray(analysis.environmental_impact_explained?.local_environmental_benefits) ? analysis.environmental_impact_explained.local_environmental_benefits : [],
+        if_you_participate_personally: Array.isArray(analysis.environmental_impact_explained?.if_you_participate_personally) ? analysis.environmental_impact_explained.if_you_participate_personally : [],
+        bigger_picture: analysis.environmental_impact_explained?.bigger_picture || "Broader impact unclear",
+        why_this_matters_for_your_community: Array.isArray(analysis.environmental_impact_explained?.why_this_matters_for_your_community) ? analysis.environmental_impact_explained.why_this_matters_for_your_community : [],
+        state_and_regional_context: Array.isArray(analysis.environmental_impact_explained?.state_and_regional_context) ? analysis.environmental_impact_explained.state_and_regional_context : []
+      },
+      // BACKWARD COMPATIBILITY
       personalized_climate_analysis: {
-        environmental_benefits: Array.isArray(analysis.personalized_climate_analysis?.environmental_benefits) ? analysis.personalized_climate_analysis.environmental_benefits : [],
-        local_impact: Array.isArray(analysis.personalized_climate_analysis?.local_impact) ? analysis.personalized_climate_analysis.local_impact : [],
-        personal_contribution: Array.isArray(analysis.personalized_climate_analysis?.personal_contribution) ? analysis.personalized_climate_analysis.personal_contribution : [],
-        scale_and_scope: analysis.personalized_climate_analysis?.scale_and_scope || "Unclear"
+        environmental_benefits: Array.isArray(analysis.environmental_impact_explained?.local_environmental_benefits) ? analysis.environmental_impact_explained.local_environmental_benefits : [],
+        local_impact: Array.isArray(analysis.environmental_impact_explained?.local_environmental_benefits) ? analysis.environmental_impact_explained.local_environmental_benefits : [],
+        personal_contribution: Array.isArray(analysis.environmental_impact_explained?.if_you_participate_personally) ? analysis.environmental_impact_explained.if_you_participate_personally : [],
+        scale_and_scope: analysis.environmental_impact_explained?.bigger_picture || "Unclear"
       },
+      detailed_bill_provisions: {
+        provision_by_provision_analysis: Array.isArray(analysis.detailed_bill_provisions?.provision_by_provision_analysis) ? analysis.detailed_bill_provisions.provision_by_provision_analysis : [],
+        which_parts_matter_most_to_you: Array.isArray(analysis.detailed_bill_provisions?.which_parts_matter_most_to_you) ? analysis.detailed_bill_provisions.which_parts_matter_most_to_you : [],
+        implementation_mechanisms: Array.isArray(analysis.detailed_bill_provisions?.implementation_mechanisms) ? analysis.detailed_bill_provisions.implementation_mechanisms : [],
+        funding_sources: Array.isArray(analysis.detailed_bill_provisions?.funding_sources) ? analysis.detailed_bill_provisions.funding_sources : []
+      },
+      eligibility_and_requirements: {
+        who_this_is_for: Array.isArray(analysis.eligibility_and_requirements?.who_this_is_for) ? analysis.eligibility_and_requirements.who_this_is_for : [],
+        who_this_is_NOT_for: Array.isArray(analysis.eligibility_and_requirements?.who_this_is_NOT_for) ? analysis.eligibility_and_requirements.who_this_is_NOT_for : [],
+        your_eligibility_assessment: Array.isArray(analysis.eligibility_and_requirements?.your_eligibility_assessment) ? analysis.eligibility_and_requirements.your_eligibility_assessment : [],
+        documentation_youll_need: Array.isArray(analysis.eligibility_and_requirements?.documentation_youll_need) ? analysis.eligibility_and_requirements.documentation_youll_need : [],
+        income_requirements: analysis.eligibility_and_requirements?.income_requirements || "Not specified",
+        property_requirements: Array.isArray(analysis.eligibility_and_requirements?.property_requirements) ? analysis.eligibility_and_requirements.property_requirements : [],
+        timing_requirements: Array.isArray(analysis.eligibility_and_requirements?.timing_requirements) ? analysis.eligibility_and_requirements.timing_requirements : [],
+        special_considerations: Array.isArray(analysis.eligibility_and_requirements?.special_considerations) ? analysis.eligibility_and_requirements.special_considerations : []
+      },
+      // BACKWARD COMPATIBILITY
       detailed_requirements: {
-        who_qualifies: Array.isArray(analysis.detailed_requirements?.who_qualifies) ? analysis.detailed_requirements.who_qualifies : [],
-        documentation_needed: Array.isArray(analysis.detailed_requirements?.documentation_needed) ? analysis.detailed_requirements.documentation_needed : [],
-        income_limits: analysis.detailed_requirements?.income_limits || "Not specified",
-        other_restrictions: Array.isArray(analysis.detailed_requirements?.other_restrictions) ? analysis.detailed_requirements.other_restrictions : []
+        who_qualifies: Array.isArray(analysis.eligibility_and_requirements?.who_this_is_for) ? analysis.eligibility_and_requirements.who_this_is_for : [],
+        documentation_needed: Array.isArray(analysis.eligibility_and_requirements?.documentation_youll_need) ? analysis.eligibility_and_requirements.documentation_youll_need : [],
+        income_limits: analysis.eligibility_and_requirements?.income_requirements || "Not specified",
+        other_restrictions: [
+          ...(Array.isArray(analysis.eligibility_and_requirements?.property_requirements) ? analysis.eligibility_and_requirements.property_requirements : []),
+          ...(Array.isArray(analysis.eligibility_and_requirements?.timing_requirements) ? analysis.eligibility_and_requirements.timing_requirements : [])
+        ]
       },
+      what_we_know_and_dont_know: {
+        definitely_established: Array.isArray(analysis.what_we_know_and_dont_know?.definitely_established) ? analysis.what_we_know_and_dont_know.definitely_established : [],
+        still_to_be_determined: Array.isArray(analysis.what_we_know_and_dont_know?.still_to_be_determined) ? analysis.what_we_know_and_dont_know.still_to_be_determined : [],
+        potential_risks_and_downsides: Array.isArray(analysis.what_we_know_and_dont_know?.potential_risks_and_downsides) ? analysis.what_we_know_and_dont_know.potential_risks_and_downsides : [],
+        questions_nobody_can_answer_yet: Array.isArray(analysis.what_we_know_and_dont_know?.questions_nobody_can_answer_yet) ? analysis.what_we_know_and_dont_know.questions_nobody_can_answer_yet : [],
+        what_to_watch_for: Array.isArray(analysis.what_we_know_and_dont_know?.what_to_watch_for) ? analysis.what_we_know_and_dont_know.what_to_watch_for : []
+      },
+      // BACKWARD COMPATIBILITY
       certainties_and_uncertainties: {
-        what_is_certain: Array.isArray(analysis.certainties_and_uncertainties?.what_is_certain) ? analysis.certainties_and_uncertainties.what_is_certain : [],
-        what_depends_on_implementation: Array.isArray(analysis.certainties_and_uncertainties?.what_depends_on_implementation) ? analysis.certainties_and_uncertainties.what_depends_on_implementation : [],
-        missing_information: Array.isArray(analysis.certainties_and_uncertainties?.missing_information) ? analysis.certainties_and_uncertainties.missing_information : [],
-        risks_and_caveats: Array.isArray(analysis.certainties_and_uncertainties?.risks_and_caveats) ? analysis.certainties_and_uncertainties.risks_and_caveats : []
+        what_is_certain: Array.isArray(analysis.what_we_know_and_dont_know?.definitely_established) ? analysis.what_we_know_and_dont_know.definitely_established : [],
+        what_depends_on_implementation: Array.isArray(analysis.what_we_know_and_dont_know?.still_to_be_determined) ? analysis.what_we_know_and_dont_know.still_to_be_determined : [],
+        missing_information: Array.isArray(analysis.what_we_know_and_dont_know?.questions_nobody_can_answer_yet) ? analysis.what_we_know_and_dont_know.questions_nobody_can_answer_yet : [],
+        risks_and_caveats: Array.isArray(analysis.what_we_know_and_dont_know?.potential_risks_and_downsides) ? analysis.what_we_know_and_dont_know.potential_risks_and_downsides : []
       },
+      your_action_plan: {
+        do_this_now: Array.isArray(analysis.your_action_plan?.do_this_now) ? analysis.your_action_plan.do_this_now : [],
+        do_this_soon: Array.isArray(analysis.your_action_plan?.do_this_soon) ? analysis.your_action_plan.do_this_soon : [],
+        plan_for_later: Array.isArray(analysis.your_action_plan?.plan_for_later) ? analysis.your_action_plan.plan_for_later : [],
+        questions_to_ask: {
+          ask_your_utility_company: Array.isArray(analysis.your_action_plan?.questions_to_ask?.ask_your_utility_company) ? analysis.your_action_plan.questions_to_ask.ask_your_utility_company : [],
+          ask_contractors: Array.isArray(analysis.your_action_plan?.questions_to_ask?.ask_contractors) ? analysis.your_action_plan.questions_to_ask.ask_contractors : [],
+          ask_your_state_agency: Array.isArray(analysis.your_action_plan?.questions_to_ask?.ask_your_state_agency) ? analysis.your_action_plan.questions_to_ask.ask_your_state_agency : []
+        },
+        resources_and_help: Array.isArray(analysis.your_action_plan?.resources_and_help) ? analysis.your_action_plan.resources_and_help : [],
+        decision_framework: Array.isArray(analysis.your_action_plan?.decision_framework) ? analysis.your_action_plan.decision_framework : []
+      },
+      // BACKWARD COMPATIBILITY
       action_plan: {
-        immediate_steps: Array.isArray(analysis.action_plan?.immediate_steps) ? analysis.action_plan.immediate_steps : [],
-        medium_term_steps: Array.isArray(analysis.action_plan?.medium_term_steps) ? analysis.action_plan.medium_term_steps : [],
-        long_term_considerations: Array.isArray(analysis.action_plan?.long_term_considerations) ? analysis.action_plan.long_term_considerations : [],
-        questions_to_ask: Array.isArray(analysis.action_plan?.questions_to_ask) ? analysis.action_plan.questions_to_ask : []
+        immediate_steps: Array.isArray(analysis.your_action_plan?.do_this_now) ? analysis.your_action_plan.do_this_now : [],
+        medium_term_steps: Array.isArray(analysis.your_action_plan?.do_this_soon) ? analysis.your_action_plan.do_this_soon : [],
+        long_term_considerations: Array.isArray(analysis.your_action_plan?.plan_for_later) ? analysis.your_action_plan.plan_for_later : [],
+        questions_to_ask: [
+          ...(Array.isArray(analysis.your_action_plan?.questions_to_ask?.ask_your_utility_company) ? analysis.your_action_plan.questions_to_ask.ask_your_utility_company : []),
+          ...(Array.isArray(analysis.your_action_plan?.questions_to_ask?.ask_contractors) ? analysis.your_action_plan.questions_to_ask.ask_contractors : []),
+          ...(Array.isArray(analysis.your_action_plan?.questions_to_ask?.ask_your_state_agency) ? analysis.your_action_plan.questions_to_ask.ask_your_state_agency : [])
+        ]
       },
+      real_world_context: {
+        similar_programs: Array.isArray(analysis.real_world_context?.similar_programs) ? analysis.real_world_context.similar_programs : [],
+        what_makes_this_different: Array.isArray(analysis.real_world_context?.what_makes_this_different) ? analysis.real_world_context.what_makes_this_different : [],
+        potential_challenges: Array.isArray(analysis.real_world_context?.potential_challenges) ? analysis.real_world_context.potential_challenges : [],
+        success_factors: Array.isArray(analysis.real_world_context?.success_factors) ? analysis.real_world_context.success_factors : [],
+        lessons_from_other_states: Array.isArray(analysis.real_world_context?.lessons_from_other_states) ? analysis.real_world_context.lessons_from_other_states : []
+      },
+      // BACKWARD COMPATIBILITY
       local_context: {
-        local_programs: Array.isArray(analysis.local_context?.local_programs) ? analysis.local_context.local_programs : [],
-        local_considerations: Array.isArray(analysis.local_context?.local_considerations) ? analysis.local_context.local_considerations : [],
-        community_resources: Array.isArray(analysis.local_context?.community_resources) ? analysis.local_context.community_resources : []
+        local_programs: Array.isArray(analysis.real_world_context?.similar_programs) ? analysis.real_world_context.similar_programs : [],
+        local_considerations: Array.isArray(analysis.real_world_context?.potential_challenges) ? analysis.real_world_context.potential_challenges : [],
+        community_resources: Array.isArray(analysis.your_action_plan?.resources_and_help) ? analysis.your_action_plan.resources_and_help : []
+      },
+      local_and_regional_impact: {
+        cities_and_regions_affected: Array.isArray(analysis.local_and_regional_impact?.cities_and_regions_affected) ? analysis.local_and_regional_impact.cities_and_regions_affected : [],
+        your_area_specifically: Array.isArray(analysis.local_and_regional_impact?.your_area_specifically) ? analysis.local_and_regional_impact.your_area_specifically : [],
+        urban_vs_rural: analysis.local_and_regional_impact?.urban_vs_rural || "Not specified",
+        local_economic_impact: Array.isArray(analysis.local_and_regional_impact?.local_economic_impact) ? analysis.local_and_regional_impact.local_economic_impact : [],
+        community_benefits: Array.isArray(analysis.local_and_regional_impact?.community_benefits) ? analysis.local_and_regional_impact.community_benefits : []
+      },
+      common_questions_answered: {
+        is_this_a_tax_increase: analysis.common_questions_answered?.is_this_a_tax_increase || "Not specified",
+        do_i_have_to_do_anything: analysis.common_questions_answered?.do_i_have_to_do_anything || "Not specified",
+        what_if_i_rent: analysis.common_questions_answered?.what_if_i_rent || "Not specified",
+        what_if_im_low_income: analysis.common_questions_answered?.what_if_im_low_income || "Not specified",
+        what_if_i_own_a_business: analysis.common_questions_answered?.what_if_i_own_a_business || "Not specified",
+        how_long_does_this_take: analysis.common_questions_answered?.how_long_does_this_take || "Not specified",
+        is_the_paperwork_complicated: analysis.common_questions_answered?.is_the_paperwork_complicated || "Not specified",
+        what_about_maintenance: analysis.common_questions_answered?.what_about_maintenance || "Not specified",
+        can_i_combine_with_other_programs: analysis.common_questions_answered?.can_i_combine_with_other_programs || "Not specified",
+        other_important_questions: Array.isArray(analysis.common_questions_answered?.other_important_questions) ? analysis.common_questions_answered.other_important_questions : []
       }
     };
 
@@ -722,7 +896,17 @@ Be thorough. Be specific. Don't hallucinate.`;
         jurisdictionName: bill.jurisdictionName,
         dateIntroduced: bill.dateIntroduced?.toISOString() || null,
         sources: bill.sources
-      }
+      },
+      // Include the scores so frontend can display them consistently
+      scores: billScores ? {
+        personalScore: billScores.personalScore,
+        personalLabel: getPersonalScoreLabel(billScores.personalScore),
+        personalReasons: billScores.personalReasons,
+        climateScore: billScores.climateScore,
+        climateLabel: getClimateScoreLabel(billScores.climateScore, billScores.climateDirection),
+        climateDirection: billScores.climateDirection,
+        climateReasons: billScores.climateReasons
+      } : null
     });
   } catch (error: any) {
     console.error("[ANALYZE_BILL] Error:", error);

@@ -45,9 +45,21 @@ type Bill = {
 type ComprehensiveAnalysis = {
   overview: {
     plain_english_summary: string;
+    what_this_means_for_you: string;
     key_provisions: string[];
-    timeline: string;
-    implementation_status: string;
+    timeline_and_status: {
+      current_status: string;
+      when_it_takes_effect: string;
+      key_deadlines: string[];
+      what_needs_to_happen_next: string;
+    };
+  };
+  your_specific_situation?: {
+    relevance_to_you: string;
+    provisions_that_apply_to_you: string[];
+    provisions_that_dont_apply: string[];
+    your_best_opportunities: string[];
+    your_biggest_barriers: string[];
   };
   personalized_financial_analysis: {
     direct_benefits: string[];
@@ -56,11 +68,24 @@ type ComprehensiveAnalysis = {
     access_pathway: string[];
     barriers: string[];
   };
+  financial_impact_for_you?: {
+    bottom_line: string;
+    breakdown_by_provision?: string[];
+  };
   personalized_climate_analysis: {
     environmental_benefits: string[];
     local_impact: string[];
     personal_contribution: string[];
     scale_and_scope: string;
+  };
+  environmental_impact_explained?: {
+    state_and_regional_context?: string[];
+  };
+  detailed_bill_provisions?: {
+    provision_by_provision_analysis: string[];
+    which_parts_matter_most_to_you: string[];
+    implementation_mechanisms: string[];
+    funding_sources: string[];
   };
   detailed_requirements: {
     who_qualifies: string[];
@@ -68,11 +93,18 @@ type ComprehensiveAnalysis = {
     income_limits: string;
     other_restrictions: string[];
   };
+  eligibility_and_requirements?: {
+    your_eligibility_assessment?: string[];
+    special_considerations?: string[];
+  };
   certainties_and_uncertainties: {
     what_is_certain: string[];
     what_depends_on_implementation: string[];
     missing_information: string[];
     risks_and_caveats: string[];
+  };
+  what_we_know_and_dont_know?: {
+    what_to_watch_for?: string[];
   };
   action_plan: {
     immediate_steps: string[];
@@ -80,10 +112,32 @@ type ComprehensiveAnalysis = {
     long_term_considerations: string[];
     questions_to_ask: string[];
   };
+  your_action_plan?: {
+    decision_framework?: string[];
+  };
   local_context: {
     local_programs: string[];
     local_considerations: string[];
     community_resources: string[];
+  };
+  local_and_regional_impact?: {
+    cities_and_regions_affected: string[];
+    your_area_specifically: string[];
+    urban_vs_rural: string;
+    local_economic_impact: string[];
+    community_benefits: string[];
+  };
+  common_questions_answered: {
+    is_this_a_tax_increase: string;
+    do_i_have_to_do_anything: string;
+    what_if_i_rent: string;
+    what_if_im_low_income: string;
+    what_if_i_own_a_business?: string;
+    how_long_does_this_take: string;
+    is_the_paperwork_complicated: string;
+    what_about_maintenance?: string;
+    can_i_combine_with_other_programs?: string;
+    other_important_questions: string[];
   };
 };
 
@@ -102,11 +156,9 @@ function GeometricPattern() {
 function MissionStatement() {
   return (
     <div className="mb-12 relative">
-      {/* Accent Line */}
       <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-emerald-400 via-teal-400 to-cyan-400 rounded-full" />
 
       <div className="pl-8 space-y-4">
-        {/* Main Mission */}
         <div className="space-y-3">
           <h2 className="text-2xl font-black text-white tracking-tight leading-tight">
             OUR MISSION
@@ -128,7 +180,6 @@ function MissionStatement() {
           </p>
         </div>
 
-        {/* Key Principles */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
           <div className="p-5 bg-zinc-900/50 border-2 border-emerald-500/20 rounded-xl">
             <div className="flex items-center gap-3 mb-2">
@@ -166,7 +217,6 @@ function MissionStatement() {
           </div>
         </div>
 
-        {/* Creator Attribution */}
         <div className="pt-4 border-t-2 border-zinc-800 flex items-center justify-between">
           <p className="text-sm text-zinc-500"></p>
           <div className="flex gap-2">
@@ -456,7 +506,6 @@ function UserProfileForm({
   );
 }
 
-/** NEW: compact 2–3 word descriptors for list view */
 function describePersonal(score: number) {
   if (score <= 0.1) return "No personal benefit";
   if (score < 3) return "Low personal benefit";
@@ -527,7 +576,6 @@ function ScoreMeter({
       </div>
       <div>
         <div className="text-sm font-black text-white tracking-wide">{label.toUpperCase()}</div>
-        {/* NEW: short descriptor next to each metric in the bill list (optional everywhere else) */}
         {descriptor ? <div className="text-xs text-zinc-300 font-black tracking-wide">{descriptor}</div> : null}
         <div className="text-xs text-zinc-500 font-bold">0-10 SCALE</div>
       </div>
@@ -622,7 +670,6 @@ function BillCard({ bill, onClick }: { bill: Bill; onClick: () => void }) {
         </div>
 
         <div className="shrink-0 space-y-6">
-          {/* NEW: 2–3 word descriptors shown next to each metric in the bill list */}
           <ScoreMeter
             score={bill.personalScore}
             label="Personal"
@@ -759,12 +806,18 @@ function BillDetailModal({ bill, onClose, userProfile }: { bill: Bill; onClose: 
                   OVERVIEW
                 </h3>
                 <p className="text-white/90 leading-relaxed mb-6">{analysis.overview.plain_english_summary}</p>
+                {analysis.overview.what_this_means_for_you && (
+                  <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl mb-6">
+                    <div className="text-xs font-black text-emerald-400 mb-2">FOR YOU SPECIFICALLY</div>
+                    <p className="text-sm text-white/90 leading-relaxed">{analysis.overview.what_this_means_for_you}</p>
+                  </div>
+                )}
                 {analysis.overview.key_provisions.length > 0 && (
                   <div className="space-y-2">
                     <h4 className="text-sm font-black text-zinc-400 tracking-wide mb-3">KEY PROVISIONS</h4>
                     {analysis.overview.key_provisions.map((item, i) => (
                       <div key={i} className="flex gap-3 text-sm text-zinc-300">
-                        <span className="text-emerald-400 font-bold">→</span>
+                        <span className="text-emerald-400 font-bold">{i + 1}.</span>
                         <span>{item}</span>
                       </div>
                     ))}
@@ -772,10 +825,70 @@ function BillDetailModal({ bill, onClose, userProfile }: { bill: Bill; onClose: 
                 )}
               </section>
 
+              {/* Your Specific Situation */}
+              {analysis.your_specific_situation && (
+                <section className="p-6 bg-blue-500/5 border-2 border-blue-500/20 rounded-2xl">
+                  <h3 className="text-xl font-black text-blue-400 mb-6">🎯 YOUR SPECIFIC SITUATION</h3>
+                  <p className="text-white/90 leading-relaxed mb-6">{analysis.your_specific_situation.relevance_to_you}</p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {analysis.your_specific_situation.provisions_that_apply_to_you.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-black text-emerald-400 mb-3">✓ APPLIES TO YOU</h4>
+                        <div className="space-y-2">
+                          {analysis.your_specific_situation.provisions_that_apply_to_you.map((item, i) => (
+                            <div key={i} className="flex gap-2 text-sm text-white">
+                              <span className="text-emerald-400 font-bold">✓</span>
+                              <span>{item}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {analysis.your_specific_situation.provisions_that_dont_apply.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-black text-zinc-400 mb-3">✗ DOESN'T APPLY</h4>
+                        <div className="space-y-2">
+                          {analysis.your_specific_situation.provisions_that_dont_apply.map((item, i) => (
+                            <div key={i} className="flex gap-2 text-sm text-zinc-400">
+                              <span className="font-bold">✗</span>
+                              <span>{item}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {analysis.your_specific_situation.your_best_opportunities.length > 0 && (
+                    <div className="mt-6">
+                      <h4 className="text-sm font-black text-emerald-400 mb-3">YOUR BEST OPPORTUNITIES</h4>
+                      <div className="space-y-2">
+                        {analysis.your_specific_situation.your_best_opportunities.map((item, i) => (
+                          <div key={i} className="flex gap-2 text-sm text-white">
+                            <span className="text-emerald-400 font-bold">{i + 1}.</span>
+                            <span>{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </section>
+              )}
+
               {/* Financial & Climate side by side */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <section className="p-6 bg-emerald-500/5 border-2 border-emerald-500/20 rounded-2xl">
                   <h3 className="text-xl font-black text-emerald-400 mb-6">💰 FINANCIAL IMPACT</h3>
+                  
+                  {analysis.financial_impact_for_you?.bottom_line && (
+                    <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl mb-6">
+                      <div className="text-xs font-black text-emerald-400 mb-1">BOTTOM LINE</div>
+                      <p className="text-sm text-white">{analysis.financial_impact_for_you.bottom_line}</p>
+                    </div>
+                  )}
+
                   {analysis.personalized_financial_analysis.direct_benefits.length > 0 && (
                     <div className="space-y-3 mb-6">
                       {analysis.personalized_financial_analysis.direct_benefits.map((item, i) => (
@@ -786,6 +899,7 @@ function BillDetailModal({ bill, onClose, userProfile }: { bill: Bill; onClose: 
                       ))}
                     </div>
                   )}
+
                   {analysis.personalized_financial_analysis.estimated_value && (
                     <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl">
                       <div className="text-xs font-black text-emerald-400 mb-1">ESTIMATED VALUE</div>
@@ -815,6 +929,83 @@ function BillDetailModal({ bill, onClose, userProfile }: { bill: Bill; onClose: 
                 </section>
               </div>
 
+              {/* Bill Provisions Detail */}
+              {analysis.detailed_bill_provisions && analysis.detailed_bill_provisions.provision_by_provision_analysis.length > 0 && (
+                <section className="p-6 bg-purple-500/5 border-2 border-purple-500/20 rounded-2xl">
+                  <h3 className="text-xl font-black text-purple-400 mb-6">📋 DETAILED PROVISIONS</h3>
+                  <div className="space-y-4">
+                    {analysis.detailed_bill_provisions.provision_by_provision_analysis.map((item, i) => (
+                      <div key={i} className="p-4 bg-purple-500/5 border border-purple-500/20 rounded-xl">
+                        <div className="text-sm text-white leading-relaxed">{item}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {analysis.detailed_bill_provisions.which_parts_matter_most_to_you.length > 0 && (
+                    <div className="mt-6">
+                      <h4 className="text-sm font-black text-purple-400 mb-3">MOST IMPORTANT FOR YOU</h4>
+                      <div className="space-y-2">
+                        {analysis.detailed_bill_provisions.which_parts_matter_most_to_you.map((item, i) => (
+                          <div key={i} className="flex gap-2 text-sm text-white">
+                            <span className="text-purple-400 font-bold">{i + 1}.</span>
+                            <span>{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </section>
+              )}
+
+              {/* Local & Regional Impact */}
+              {analysis.local_and_regional_impact && (
+                <section className="p-6 bg-cyan-500/5 border-2 border-cyan-500/20 rounded-2xl">
+                  <h3 className="text-xl font-black text-cyan-400 mb-6">📍 LOCAL & REGIONAL IMPACT</h3>
+                  
+                  {analysis.local_and_regional_impact.your_area_specifically.length > 0 && (
+                    <div className="mb-6">
+                      <h4 className="text-sm font-black text-cyan-400 mb-3">IN YOUR AREA</h4>
+                      <div className="space-y-2">
+                        {analysis.local_and_regional_impact.your_area_specifically.map((item, i) => (
+                          <div key={i} className="flex gap-2 text-sm text-white">
+                            <span className="text-cyan-400 font-bold">→</span>
+                            <span>{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {analysis.local_and_regional_impact.cities_and_regions_affected.length > 0 && (
+                    <div className="mb-6">
+                      <h4 className="text-sm font-black text-cyan-400 mb-3">AFFECTED REGIONS</h4>
+                      <div className="space-y-2">
+                        {analysis.local_and_regional_impact.cities_and_regions_affected.map((item, i) => (
+                          <div key={i} className="flex gap-2 text-sm text-white">
+                            <span className="text-cyan-400 font-bold">→</span>
+                            <span>{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {analysis.local_and_regional_impact.local_economic_impact.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-black text-cyan-400 mb-3">ECONOMIC IMPACT</h4>
+                      <div className="space-y-2">
+                        {analysis.local_and_regional_impact.local_economic_impact.map((item, i) => (
+                          <div key={i} className="flex gap-2 text-sm text-white">
+                            <span className="text-cyan-400 font-bold">→</span>
+                            <span>{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </section>
+              )}
+
               {/* Action Plan */}
               {analysis.action_plan.immediate_steps.length > 0 && (
                 <section className="p-6 bg-blue-500/5 border-2 border-blue-500/20 rounded-2xl">
@@ -822,7 +1013,7 @@ function BillDetailModal({ bill, onClose, userProfile }: { bill: Bill; onClose: 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {analysis.action_plan.immediate_steps.length > 0 && (
                       <div>
-                        <h4 className="text-sm font-black text-blue-400 mb-3">IMMEDIATE</h4>
+                        <h4 className="text-sm font-black text-blue-400 mb-3">DO NOW</h4>
                         <div className="space-y-2">
                           {analysis.action_plan.immediate_steps.map((step, i) => (
                             <div key={i} className="flex gap-2 text-sm text-white">
@@ -835,7 +1026,7 @@ function BillDetailModal({ bill, onClose, userProfile }: { bill: Bill; onClose: 
                     )}
                     {analysis.action_plan.medium_term_steps.length > 0 && (
                       <div>
-                        <h4 className="text-sm font-black text-cyan-400 mb-3">MEDIUM-TERM</h4>
+                        <h4 className="text-sm font-black text-cyan-400 mb-3">DO SOON</h4>
                         <div className="space-y-2">
                           {analysis.action_plan.medium_term_steps.map((step, i) => (
                             <div key={i} className="flex gap-2 text-sm text-white">
@@ -848,7 +1039,7 @@ function BillDetailModal({ bill, onClose, userProfile }: { bill: Bill; onClose: 
                     )}
                     {analysis.action_plan.long_term_considerations.length > 0 && (
                       <div>
-                        <h4 className="text-sm font-black text-teal-400 mb-3">LONG-TERM</h4>
+                        <h4 className="text-sm font-black text-teal-400 mb-3">PLAN AHEAD</h4>
                         <div className="space-y-2">
                           {analysis.action_plan.long_term_considerations.map((item, i) => (
                             <div key={i} className="flex gap-2 text-sm text-white">
@@ -859,6 +1050,42 @@ function BillDetailModal({ bill, onClose, userProfile }: { bill: Bill; onClose: 
                         </div>
                       </div>
                     )}
+                  </div>
+                </section>
+              )}
+
+              {/* Common Questions */}
+              {analysis.common_questions_answered && (
+                <section className="p-6 bg-amber-500/5 border-2 border-amber-500/20 rounded-2xl">
+                  <h3 className="text-xl font-black text-amber-400 mb-6">❓ COMMON QUESTIONS</h3>
+                  <div className="space-y-4">
+                    {Object.entries(analysis.common_questions_answered).map(([key, value]) => {
+                      if (key === 'other_important_questions') {
+                        if (Array.isArray(value) && value.length > 0) {
+                          return (
+                            <div key={key}>
+                              <h4 className="text-sm font-black text-amber-400 mb-2">OTHER QUESTIONS</h4>
+                              <div className="space-y-2">
+                                {value.map((q, i) => (
+                                  <p key={i} className="text-sm text-white/90 leading-relaxed">• {q}</p>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }
+                      if (typeof value === 'string' && value !== "Not specified") {
+                        const questionLabel = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                        return (
+                          <div key={key}>
+                            <h4 className="text-sm font-black text-amber-400 mb-2">{questionLabel}?</h4>
+                            <p className="text-sm text-white/90 leading-relaxed">{value}</p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })}
                   </div>
                 </section>
               )}
@@ -910,7 +1137,6 @@ export default function Page() {
       {step === "form" ? (
         <div className="relative min-h-screen flex items-center justify-center p-6">
           <div className="w-full max-w-5xl">
-            {/* Header */}
             <div className="mb-12 text-center">
               <div className="inline-flex items-center gap-3 px-5 py-2.5 bg-blue-500/10 border-2 border-blue-400/30 rounded-full mb-8">
                 <svg className="w-5 h-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -930,7 +1156,6 @@ export default function Page() {
               </p>
             </div>
 
-            {/* Mission Statement */}
             <MissionStatement />
 
             <div className="p-10 bg-zinc-900/50 border-2 border-zinc-800 rounded-3xl backdrop-blur-xl">
