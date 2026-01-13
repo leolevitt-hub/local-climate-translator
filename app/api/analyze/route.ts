@@ -1,11 +1,11 @@
 // app/api/analyze/route.ts
-// Climate Impact Compass — V6 Enhanced Climate Scoring
+// Climate Impact Compass — V7 Enhanced Climate Scoring with Strict State Filtering
 // Created by Leo Levitt
 //
-// V6 improvements:
-// - Enhanced climate scoring that recognizes INDIRECT climate benefits
-// - Better detection of policies that enable/accelerate clean energy
-// - Recognition that removing barriers = climate positive
+// V7 improvements:
+// - STRICT state filtering - bills ONLY from user's state
+// - Enhanced validation of jurisdiction matching
+// - Better error messages when no state-specific bills found
 // - All personal scoring unchanged
 
 import { NextResponse } from "next/server";
@@ -54,6 +54,68 @@ type UserProfile = {
   interested_in_solar: string;
   own_business: string;
 };
+
+// Map of state abbreviations to full names for flexible matching
+const STATE_NAME_MAP: Record<string, string[]> = {
+  "CT": ["CT", "Connecticut", "CONNECTICUT"],
+  "CA": ["CA", "California", "CALIFORNIA"],
+  "NY": ["NY", "New York", "NEW YORK"],
+  "MA": ["MA", "Massachusetts", "MASSACHUSETTS"],
+  "NJ": ["NJ", "New Jersey", "NEW JERSEY"],
+  "PA": ["PA", "Pennsylvania", "PENNSYLVANIA"],
+  "TX": ["TX", "Texas", "TEXAS"],
+  "FL": ["FL", "Florida", "FLORIDA"],
+  "IL": ["IL", "Illinois", "ILLINOIS"],
+  "OH": ["OH", "Ohio", "OHIO"],
+  "GA": ["GA", "Georgia", "GEORGIA"],
+  "NC": ["NC", "North Carolina", "NORTH CAROLINA"],
+  "MI": ["MI", "Michigan", "MICHIGAN"],
+  "WA": ["WA", "Washington", "WASHINGTON"],
+  "AZ": ["AZ", "Arizona", "ARIZONA"],
+  "CO": ["CO", "Colorado", "COLORADO"],
+  "VA": ["VA", "Virginia", "VIRGINIA"],
+  "TN": ["TN", "Tennessee", "TENNESSEE"],
+  "MN": ["MN", "Minnesota", "MINNESOTA"],
+  "OR": ["OR", "Oregon", "OREGON"],
+  // Add more states as needed
+};
+
+// Get all valid jurisdiction codes for a state
+function getStateJurisdictionCodes(stateCode: string): string[] {
+  const normalized = stateCode.toUpperCase().trim();
+  const mappings = STATE_NAME_MAP[normalized];
+  if (mappings) {
+    return mappings;
+  }
+  // If not in map, return just the code itself
+  return [normalized];
+}
+
+// Check if a jurisdiction matches the user's state
+function jurisdictionMatchesState(jurisdictionCode: string | null, jurisdictionName: string | null, userState: string): boolean {
+  if (!userState) return false;
+  
+  const normalizedUserState = userState.toUpperCase().trim();
+  const validCodes = getStateJurisdictionCodes(normalizedUserState);
+  
+  // Check jurisdiction code
+  if (jurisdictionCode) {
+    const normalizedJurisdiction = jurisdictionCode.toUpperCase().trim();
+    if (validCodes.some(code => normalizedJurisdiction === code || normalizedJurisdiction.includes(code))) {
+      return true;
+    }
+  }
+  
+  // Check jurisdiction name
+  if (jurisdictionName) {
+    const normalizedName = jurisdictionName.toUpperCase().trim();
+    if (validCodes.some(code => normalizedName === code || normalizedName.includes(code))) {
+      return true;
+    }
+  }
+  
+  return false;
+}
 
 function normalizeInput(body: any): UserProfile {
   return {
@@ -336,9 +398,16 @@ async function aiScoreBills(
 }
 
 async function findRelevantBills(userProfile: UserProfile): Promise<NextResponse> {
-  console.log(`\n[FIND_BILLS] Starting for state: ${userProfile.state}`);
+  console.log(`\n[FIND_BILLS] Starting for state: ${userProfile.state}, ZIP: ${userProfile.zip}`);
 
-  if (!userProfile.state) return NextResponse.json({ error: "State is required" }, { status: 400 });
+  if (!userProfile.state) {
+    return NextResponse.json({ error: "State is required" }, { status: 400 });
+  }
+
+  const normalizedState = userProfile.state.toUpperCase().trim();
+  const validJurisdictions = getStateJurisdictionCodes(normalizedState);
+  
+  console.log(`[FIND_BILLS] Looking for bills in jurisdictions: ${validJurisdictions.join(", ")}`);
 
   const MAX_BILLS_FETCH = Number(process.env.MAX_BILLS_FETCH ?? 180);
   const AI_SHORTLIST = Number(process.env.AI_SHORTLIST ?? 140);
@@ -357,10 +426,22 @@ async function findRelevantBills(userProfile: UserProfile): Promise<NextResponse
       return NextResponse.json({ bills: [], total: 0, message: "No policies in database. Run ingestion script first." });
     }
 
+    // STRICT STATE FILTERING: Use OR to match any valid jurisdiction code/name
     const bills = await db.policy.findMany({
       where: {
-        jurisdictionCode: userProfile.state,
-        policyType: { in: ["direct", "indirect"] },
+        AND: [
+          { policyType: { in: ["direct", "indirect"] } },
+          {
+            OR: validJurisdictions.map(code => ({
+              OR: [
+                { jurisdictionCode: { equals: code, mode: 'insensitive' as const } },
+                { jurisdictionCode: { contains: code, mode: 'insensitive' as const } },
+                { jurisdictionName: { equals: code, mode: 'insensitive' as const } },
+                { jurisdictionName: { contains: code, mode: 'insensitive' as const } },
+              ]
+            }))
+          }
+        ]
       },
       include: {
         tags: { select: { tag: true } },
@@ -374,12 +455,34 @@ async function findRelevantBills(userProfile: UserProfile): Promise<NextResponse
       take: MAX_BILLS_FETCH,
     });
 
-    console.log(`[FIND_BILLS] Pulled ${bills.length} bills for ${userProfile.state}`);
-    if (bills.length === 0) {
-      return NextResponse.json({ bills: [], total: 0, message: `No bills found for state: ${userProfile.state}` });
+    console.log(`[FIND_BILLS] Initial query returned ${bills.length} bills`);
+
+    // SECONDARY FILTER: Double-check that all bills actually match the user's state
+    const filteredBills = bills.filter(bill => 
+      jurisdictionMatchesState(bill.jurisdictionCode, bill.jurisdictionName, normalizedState)
+    );
+
+    console.log(`[FIND_BILLS] After strict state filter: ${filteredBills.length} bills for ${normalizedState}`);
+
+    if (filteredBills.length === 0) {
+      // Log what jurisdictions we found in the database for debugging
+      const sampleBills = await db.policy.findMany({
+        select: { jurisdictionCode: true, jurisdictionName: true },
+        distinct: ['jurisdictionCode'],
+        take: 10,
+      });
+      console.log(`[FIND_BILLS] Available jurisdictions in DB:`, sampleBills.map(b => `${b.jurisdictionCode} (${b.jurisdictionName})`));
+      
+      return NextResponse.json({ 
+        bills: [], 
+        total: 0, 
+        message: `No bills found for state: ${normalizedState}. This state may not be supported yet.`,
+        userState: normalizedState,
+        availableJurisdictions: sampleBills.map(b => b.jurisdictionCode).filter(Boolean)
+      });
     }
 
-    const enriched = bills.map((bill) => {
+    const enriched = filteredBills.map((bill) => {
       const tags = bill.tags.map((t) => t.tag);
       const text = joinLowercase(bill.title, bill.summary);
       const { climateHint, personalHint } = computeHints(tags, text);
@@ -397,6 +500,7 @@ async function findRelevantBills(userProfile: UserProfile): Promise<NextResponse
         climateHint,
         personalHint,
         sources: bill.sources.map((s) => ({ url: s.url, name: s.name })),
+        jurisdictionCode: bill.jurisdictionCode,
         jurisdictionName: bill.jurisdictionName,
         status: bill.status,
         dateIntroduced: bill.dateIntroduced?.toISOString() || null,
@@ -459,6 +563,7 @@ async function findRelevantBills(userProfile: UserProfile): Promise<NextResponse
         climateDirection,
         climateReasons,
         relevance,
+        jurisdictionCode: b.jurisdictionCode,
         jurisdictionName: b.jurisdictionName,
         status: b.status,
         dateIntroduced: b.dateIntroduced,
@@ -480,13 +585,15 @@ async function findRelevantBills(userProfile: UserProfile): Promise<NextResponse
       .slice(0, 30)
       .map(({ _rank, _scoredBy, ...rest }) => rest);
 
-    console.log(`[FIND_BILLS] Returning ${relevantBills.length} bills\n`);
+    console.log(`[FIND_BILLS] Returning ${relevantBills.length} bills for ${normalizedState}\n`);
 
     return NextResponse.json({
       bills: relevantBills,
       total: relevantBills.length,
+      userState: normalizedState,
       scoringExplanation: {
         methodology: "AI-led scoring with improved climate impact detection. Recognizes indirect benefits like barrier removal and market acceleration.",
+        stateFiltering: `Bills strictly filtered to ${normalizedState} jurisdiction only.`,
         neutrality: "Neutral personal/climate impact is exactly 0.00.",
         knobs: {
           MAX_BILLS_FETCH,
@@ -527,7 +634,13 @@ async function analyzeBill(billId: string, userProfile: UserProfile): Promise<Ne
       return NextResponse.json({ error: "Bill not found" }, { status: 404 });
     }
 
-    console.log(`[ANALYZE_BILL] Found bill: ${bill.title}`);
+    // Verify the bill is from the user's state
+    if (!jurisdictionMatchesState(bill.jurisdictionCode, bill.jurisdictionName, userProfile.state)) {
+      console.warn(`[ANALYZE_BILL] Bill ${billId} is from ${bill.jurisdictionCode}, but user is from ${userProfile.state}`);
+      // Still allow analysis but log the mismatch
+    }
+
+    console.log(`[ANALYZE_BILL] Found bill: ${bill.title} (${bill.jurisdictionCode})`);
 
     // First, get the scoring for this bill to ensure consistency
     const tags = bill.tags.map((t) => t.tag);
@@ -695,7 +808,7 @@ Title: ${bill.title}
 Status: ${bill.status}
 Summary: ${bill.summary || "No summary"}
 Tags: ${bill.tags.map((t) => t.tag).join(", ")}
-Jurisdiction: ${bill.jurisdictionName}
+Jurisdiction: ${bill.jurisdictionName} (${bill.jurisdictionCode})
 Date: ${bill.dateIntroduced?.toISOString().split('T')[0] || "Unknown"}
 
 Be thorough. Be specific. Don't hallucinate. Align with the scores provided.`;
@@ -893,6 +1006,7 @@ Be thorough. Be specific. Don't hallucinate. Align with the scores provided.`;
         id: bill.id,
         title: bill.title,
         status: bill.status,
+        jurisdictionCode: bill.jurisdictionCode,
         jurisdictionName: bill.jurisdictionName,
         dateIntroduced: bill.dateIntroduced?.toISOString() || null,
         sources: bill.sources

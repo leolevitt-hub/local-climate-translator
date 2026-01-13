@@ -33,8 +33,8 @@ const MAX_PAGES = Number(process.env.INGEST_PAGES ?? "2");
 const DETAIL_DELAY_MS = Number(process.env.INGEST_DELAY_MS ?? "6500");
 const INCLUDE_UNCLEAR = String(process.env.INGEST_INCLUDE_UNCLEAR ?? "false").toLowerCase() === "true";
 
-// NEW: Add session filter for 2025
-const SESSION_YEAR = Number(process.env.INGEST_SESSION_YEAR ?? "2025");
+// NEW: Use session string directly (e.g., "2025" for CT, "20252026" for CA)
+const SESSION = process.env.INGEST_SESSION ?? "2025";
 
 // ---------- HELPERS ----------
 function sleep(ms: number) {
@@ -262,8 +262,7 @@ async function listBills(jurisdiction: string, page: number) {
     page,
     per_page: 20,
     sort: "updated_desc",
-    // MODIFIED: Add session filter for specific year
-    session: `${SESSION_YEAR}`,
+    session: SESSION,
   });
 
   const results = Array.isArray((data as any)?.results) ? (data as any).results : [];
@@ -379,7 +378,7 @@ async function upsertFromBill(
 
 // ---------- MAIN ----------
 async function ingestJurisdiction(code: string) {
-  console.log(`\n=== Ingesting ${code} session=${SESSION_YEAR} pages=${MAX_PAGES} delayMs=${DETAIL_DELAY_MS} includeUnclear=${INCLUDE_UNCLEAR} ===`);
+  console.log(`\n=== Ingesting ${code} session=${SESSION} pages=${MAX_PAGES} delayMs=${DETAIL_DELAY_MS} includeUnclear=${INCLUDE_UNCLEAR} ===`);
 
   let ingested = 0;
   let skipped = 0;
@@ -420,7 +419,7 @@ async function main() {
   console.log("INGEST START");
   console.log("DATABASE_URL set?", Boolean(process.env.DATABASE_URL));
   console.log("OPENSTATES_API_KEY set?", Boolean(process.env.OPENSTATES_API_KEY));
-  console.log("SESSION_YEAR:", SESSION_YEAR);
+  console.log("SESSION:", SESSION);
 
   for (const code of JURISDICTIONS) {
     await ingestJurisdiction(code);
