@@ -372,7 +372,7 @@ function UserProfileForm({ onSubmit, loading }: { onSubmit: (profile: UserProfil
         <div className="absolute inset-0 bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
         <div className="absolute inset-0 opacity-0 group-hover:opacity-20"><div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,white,transparent_70%)]" /></div>
         <div className="relative flex items-center justify-center gap-4">
-          {loading ? <><DotsLoader /><span>ANALYZING POLICIES...</span></> : <>
+          {loading ? <><DotsLoader /><span>ANALYZING POLICIES...(MAY TAKE 2-3 MINUTES)</span></> : <>
             <svg className="w-6 h-6 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             <span>FIND YOUR CLIMATE POLICIES</span>
             <svg className="w-5 h-5 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
