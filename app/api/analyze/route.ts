@@ -9,6 +9,7 @@
 // - Supports NEGATIVE scores for harmful policies
 // - Much deeper bill analysis with specific suggestions
 // - Enhanced prompt engineering for more critical evaluation
+// - ROBUST ERROR HANDLING for API failures
 
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
@@ -17,25 +18,41 @@ import { PrismaPg } from "@prisma/adapter-pg";
 
 export const runtime = "nodejs";
 
+// Increase max duration for Vercel serverless functions
+export const maxDuration = 60;
+
 let prismaInstance: PrismaClient | null = null;
 
 function getDatabaseClient(): PrismaClient {
-  if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL environment variable is missing");
+  if (!process.env.DATABASE_URL) {
+    throw new Error("DATABASE_URL environment variable is missing");
+  }
 
   if (!prismaInstance) {
-    const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
-    prismaInstance = new PrismaClient({
-      adapter,
-      log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
-    });
-    console.log("✓ Prisma client initialized");
+    try {
+      const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+      prismaInstance = new PrismaClient({
+        adapter,
+        log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
+      });
+      console.log("✓ Prisma client initialized");
+    } catch (err: any) {
+      console.error("Failed to initialize Prisma client:", err?.message || err);
+      throw new Error(`Database connection failed: ${err?.message || "Unknown error"}`);
+    }
   }
   return prismaInstance;
 }
 
 function getOpenAIClient(): OpenAI {
-  if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY environment variable is missing");
-  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 2, timeout: 180000 }); // 3 minutes
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY environment variable is missing");
+  }
+  return new OpenAI({ 
+    apiKey: process.env.OPENAI_API_KEY, 
+    maxRetries: 2, 
+    timeout: 120000 // 2 minutes
+  });
 }
 
 type UserProfile = {
@@ -79,7 +96,6 @@ const STATE_NAME_MAP: Record<string, string[]> = {
   "TN": ["TN", "Tennessee", "TENNESSEE"],
   "MN": ["MN", "Minnesota", "MINNESOTA"],
   "OR": ["OR", "Oregon", "OREGON"],
-  // Add more states as needed
 };
 
 // Get all valid jurisdiction codes for a state
@@ -89,7 +105,6 @@ function getStateJurisdictionCodes(stateCode: string): string[] {
   if (mappings) {
     return mappings;
   }
-  // If not in map, return just the code itself
   return [normalized];
 }
 
@@ -100,7 +115,6 @@ function jurisdictionMatchesState(jurisdictionCode: string | null, jurisdictionN
   const normalizedUserState = userState.toUpperCase().trim();
   const validCodes = getStateJurisdictionCodes(normalizedUserState);
   
-  // Check jurisdiction code
   if (jurisdictionCode) {
     const normalizedJurisdiction = jurisdictionCode.toUpperCase().trim();
     if (validCodes.some(code => normalizedJurisdiction === code || normalizedJurisdiction.includes(code))) {
@@ -108,7 +122,6 @@ function jurisdictionMatchesState(jurisdictionCode: string | null, jurisdictionN
     }
   }
   
-  // Check jurisdiction name
   if (jurisdictionName) {
     const normalizedName = jurisdictionName.toUpperCase().trim();
     if (validCodes.some(code => normalizedName === code || normalizedName.includes(code))) {
@@ -175,11 +188,51 @@ function normalizeDirection(d: any): "positive" | "negative" | "neutral" {
 }
 
 // ============================================================================
+// SAFE JSON PARSING - Handles various edge cases
+// ============================================================================
+
+function safeParseJSON(raw: string): any | null {
+  if (!raw || typeof raw !== "string") {
+    console.warn("[safeParseJSON] Empty or invalid input");
+    return null;
+  }
+
+  const trimmed = raw.trim();
+  
+  // Check if it looks like an error message instead of JSON
+  if (trimmed.startsWith("An error") || trimmed.startsWith("Error") || trimmed.startsWith("<!DOCTYPE")) {
+    console.error("[safeParseJSON] Received error message instead of JSON:", trimmed.substring(0, 200));
+    return null;
+  }
+
+  // Try direct parse first
+  try {
+    return JSON.parse(trimmed);
+  } catch (e) {
+    // Try to extract JSON from the response
+    const jsonStart = trimmed.indexOf("{");
+    const jsonEnd = trimmed.lastIndexOf("}");
+    
+    if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+      try {
+        const extracted = trimmed.slice(jsonStart, jsonEnd + 1);
+        return JSON.parse(extracted);
+      } catch (e2) {
+        console.error("[safeParseJSON] Failed to extract JSON:", trimmed.substring(0, 200));
+        return null;
+      }
+    }
+    
+    console.error("[safeParseJSON] No valid JSON found:", trimmed.substring(0, 200));
+    return null;
+  }
+}
+
+// ============================================================================
 // CALIBRATED SCORE LABELS - More granular and accurate
 // ============================================================================
 
 function getPersonalScoreLabel(score: number): string {
-  // Positive benefits
   if (score >= 9.0) return "Exceptional savings opportunity";
   if (score >= 8.0) return "Major savings opportunity";
   if (score >= 7.0) return "Strong savings potential";
@@ -190,9 +243,7 @@ function getPersonalScoreLabel(score: number): string {
   if (score >= 2.0) return "Small indirect benefit";
   if (score >= 1.0) return "Minimal benefit";
   if (score > 0) return "Negligible benefit";
-  // Neutral
   if (score === 0) return "No direct financial impact";
-  // Negative impacts (costs)
   if (score >= -1.0) return "Negligible cost";
   if (score >= -2.0) return "Minor indirect cost";
   if (score >= -3.0) return "Some cost possible";
@@ -241,33 +292,25 @@ function getClimateScoreLabel(score: number, direction: "positive" | "negative" 
 
 function computeHints(tags: string[], text: string) {
   const t = text.toLowerCase();
-  const tagSet = new Set(tags);
 
-  // Direct emissions reduction indicators
   const directEmissionsKeywords = /(greenhouse gas|ghg|emission reduction|carbon cap|carbon tax|methane|co2|decarboniz)/i;
   const hasDirectEmissions = directEmissionsKeywords.test(t);
 
-  // Renewable energy deployment
   const renewableKeywords = /(solar|wind|geothermal|hydropower|renewable portfolio|clean energy standard|100% clean)/i;
   const hasRenewable = renewableKeywords.test(t);
 
-  // Electrification
   const electrificationKeywords = /(heat pump|electric vehicle mandate|zev mandate|building electrification|gas ban|fossil fuel phase)/i;
   const hasElectrification = electrificationKeywords.test(t);
 
-  // Infrastructure (indirect but important)
   const infrastructureKeywords = /(grid modernization|transmission|battery storage|microgrid|charging infrastructure)/i;
   const hasInfrastructure = infrastructureKeywords.test(t);
 
-  // Supportive but very indirect
   const supportiveKeywords = /(permitting|workforce|training|study|report|planning|advisory)/i;
   const hasSupportive = supportiveKeywords.test(t);
 
-  // Harmful indicators
   const harmfulKeywords = /(new pipeline|lng terminal|new gas plant|fracking|coal|drilling|fossil fuel subsid|rollback|repeal.*environmental)/i;
   const hasHarmful = harmfulKeywords.test(t);
 
-  // Calculate climate hint
   let climateHint = 0.0;
   if (hasHarmful) climateHint = -0.6;
   else if (hasDirectEmissions || hasElectrification) climateHint = 0.7;
@@ -275,7 +318,6 @@ function computeHints(tags: string[], text: string) {
   else if (hasInfrastructure) climateHint = 0.3;
   else if (hasSupportive) climateHint = 0.15;
 
-  // Financial hint indicators
   const directFinancialKeywords = /(rebate|tax credit|grant|voucher|direct payment|\$\d|thousand dollars|million.*program|bill credit|bill assistance)/i;
   const indirectFinancialKeywords = /(rate reduction|low-interest|financing|loan program|eligible|income-qualified)/i;
   const costKeywords = /(fee increase|tax increase|surcharge|assessment|mandate.*cost|compliance cost)/i;
@@ -306,7 +348,7 @@ type AIResult = {
 };
 
 // ============================================================================
-// RIGOROUS SCORING PROMPT - The core of the improved system
+// RIGOROUS SCORING PROMPT
 // ============================================================================
 
 const SCORING_SYSTEM_PROMPT = `You are a RIGOROUS yet FAIR policy scoring engine for Climate Impact Compass.
@@ -319,53 +361,22 @@ FINANCIAL SCORE: -10.00 to +10.00 (Personal financial impact to THIS specific us
 
 CRITICAL CALIBRATION ANCHORS (use decimals within ranges):
 • +8.5 to +10.0: Bills providing $400+/month reliable savings or $8,000+ one-time
-  Example: "30% tax credit on $30,000 solar installation = $9,000 direct savings" → 9.2
-  Example: "$7,500 EV tax credit for eligible buyers" → 8.7
-  
 • +7.0 to +8.4: $175-400/month savings OR $2,500-$8,000 one-time benefit
-  Example: "50% rebate on $6,000 heat pump installation" → 7.8
-  Example: "$4,000 home battery incentive" → 7.3
-  
 • +5.5 to +6.9: $75-175/month savings OR $800-$2,500 one-time benefit
-  Example: "$2,000 rebate for electric water heater" → 6.4
-  Example: "Low-income utility bill assistance of $120/month" → 6.1
-  Example: "$1,500 weatherization grant" → 5.9
-  
 • +4.0 to +5.4: $35-75/month savings OR $350-$800 one-time benefit
-  Example: "Weatherization program covering $600 in improvements" → 4.8
-  Example: "$500 rebate for induction stove" → 4.5
-  
 • +2.8 to +3.9: $15-35/month savings OR $100-$350 one-time benefit
-  Example: "$250 rebate for smart thermostat" → 3.4
-  Example: "Free energy audit worth $200" → 3.1
-  
 • +1.8 to +2.7: Small indirect savings, notable convenience improvements
-  Example: "Standardized EV charging payment (real convenience value)" → 2.3
-  Example: "Utility rate transparency requirements" → 2.1
-  
 • +0.8 to +1.7: Marginal, speculative, or highly conditional benefit
-  Example: "Might slightly reduce utility rates through efficiency programs" → 1.4
-  Example: "Future potential for program participation" → 1.1
-  
 • 0.0 to +0.7: Negligible or no financial impact to this user
-  Example: "Commercial building codes that don't affect residential users" → 0.2
-  
 • -0.8 to -2.5: Small indirect costs or fees
-  Example: "Small surcharge on utility bills for clean energy fund" → -1.6
-  
 • -2.6 to -4.5: Moderate costs ($20-90/month or $150-900 one-time)
-  Example: "Mandatory home energy upgrade requirements for sellers" → -3.8
-  
 • -4.6 to -6.5: Significant costs ($90-250/month or $900-4000 one-time)
-  Example: "Required EV charger installation in new construction (cost to buyer)" → -5.3
-  
 • -6.6 to -10.0: Major costs ($250+/month or $4000+ one-time)
-  Example: "Mandatory building retrofit requirements with compliance costs" → -7.4
 
 FINANCIAL SCORING RULES:
 1. If no dollar amount specified, estimate conservatively but don't assume zero
 2. "May provide" or "could save" = reduce score by 1.5-2.5 points from stated value
-3. If user doesn't meet eligibility criteria, score is 0-1.5 (not necessarily zero - they may qualify later)
+3. If user doesn't meet eligibility criteria, score is 0-1.5
 4. Convenience improvements alone (no money saved) = 1.8-3.2 depending on significance
 5. Future/speculative benefits = reduce score by 1-2 points
 6. Consider user's specific situation: renter vs owner, income, etc.
@@ -377,80 +388,31 @@ CLIMATE SCORE: 0.00 to 10.00 with direction (positive/negative/neutral)
 
 Score based on TANGIBLE EMISSIONS IMPACT while recognizing enabling/accelerating effects.
 
-CALIBRATION ANCHORS FOR POSITIVE DIRECTION (use precise decimals):
+CALIBRATION ANCHORS FOR POSITIVE DIRECTION:
 • 8.5-10.0: TRANSFORMATIVE - Directly mandates massive emissions cuts
-  Example: "100% clean electricity standard by 2035" → 9.6
-  Example: "Ban on new gas hookups statewide" → 9.1
-  Example: "Carbon cap reducing emissions 50% by 2030" → 9.3
-  
 • 6.8-8.4: MAJOR - Large-scale direct emissions reduction
-  Example: "50% renewable portfolio standard" → 8.2
-  Example: "Mandatory building emissions limits with penalties" → 7.6
-  Example: "$500M annual investment in utility-scale solar" → 7.9
-  Example: "EV sales mandate: 50% of new cars by 2030" → 7.4
-  
 • 5.2-6.7: SIGNIFICANT - Meaningful emissions reduction, proven mechanism
-  Example: "Commercial building energy benchmarking with disclosure & penalties" → 6.5
-  Example: "EV sales mandate: 35% of new cars by 2030" → 6.2
-  Example: "Methane leak detection and repair requirements" → 5.8
-  Example: "Large solar incentive program ($100M/year)" → 5.9
-  
 • 3.8-5.1: MODERATE - Clear emissions reduction but limited scope
-  Example: "Residential solar incentive program ($50M/year)" → 4.7
-  Example: "Electric school bus replacement program" → 4.4
-  Example: "State fleet electrification requirements" → 4.2
-  Example: "Building energy codes update" → 4.0
-  
 • 2.5-3.7: SOME BENEFIT - Indirect but measurable enabling impact
-  Example: "Streamlined permitting for solar installations" → 3.5
-  Example: "EV charging infrastructure requirements in new construction" → 3.3
-  Example: "Energy efficiency standards for appliances" → 3.1
-  Example: "Green bank with $50M capitalization" → 2.9
-  
 • 1.5-2.4: MINOR - Supportive infrastructure, indirect pathway to reductions
-  Example: "Clean energy workforce training program" → 2.2
-  Example: "EV charging payment standardization" → 2.1 ← THIS IS WHERE THAT BILL BELONGS
-  Example: "Climate adaptation planning requirements" → 1.9
-  Example: "Emissions reporting requirements (no limits)" → 1.7
-  
 • 0.5-1.4: MINIMAL - Climate-adjacent, speculative impact
-  Example: "Study on climate impacts" → 1.1
-  Example: "Advisory committee creation" → 0.9
-  Example: "Voluntary efficiency programs" → 1.3
-  Example: "Climate education curriculum" → 0.8
-  
 • 0.0-0.4: NEUTRAL - No meaningful climate connection
-  Example: "General tax policy" → 0.1
-  Example: "Non-energy infrastructure" → 0.0
 
 CALIBRATION ANCHORS FOR NEGATIVE DIRECTION:
-• 0.5-2.4 negative: Minor harm - Slight emissions increase
-  Example: "Weakening of efficiency standards" → -1.8
-  Example: "Delay of clean energy deadline by 2 years" → -2.2
-  
-• 2.5-4.5 negative: Moderate harm - Meaningful emissions increase
-  Example: "Subsidies for natural gas appliances" → -3.6
-  Example: "Delay of emissions requirements by 5+ years" → -4.1
-  
-• 4.6-6.5 negative: Significant harm - Substantial emissions increase
-  Example: "New gas pipeline approval" → -5.7
-  Example: "Rollback of renewable requirements" → -6.2
-  
-• 6.6-8.4 negative: Major harm - Large-scale emissions increase
-  Example: "New coal plant approval" → -7.8
-  Example: "Repeal of major climate legislation" → -8.1
-  
-• 8.5-10.0 negative: Catastrophic - Massive emissions lock-in
-  Example: "Long-term fossil fuel infrastructure expansion" → -9.4
+• 0.5-2.4 negative: Minor harm
+• 2.5-4.5 negative: Moderate harm
+• 4.6-6.5 negative: Significant harm
+• 6.6-8.4 negative: Major harm
+• 8.5-10.0 negative: Catastrophic
 
 CLIMATE SCORING RULES:
 1. REMOVING BARRIERS has value but ≠ DIRECT EMISSIONS REDUCTION. Score 2.5-4.0 range.
-2. "Supports" or "enables" clean energy = 2.0-4.5 depending on how direct the pathway is
+2. "Supports" or "enables" clean energy = 2.0-4.5 depending on how direct
 3. Payment/convenience improvements alone = 1.5-2.5
 4. Studies, reports, advisory bodies = 0.8-1.5
 5. Workforce training = 1.8-2.8
 6. Infrastructure that enables future reductions = score probability × potential impact
-7. USE PRECISE DECIMALS throughout - 3.65, 5.2, 7.85 are better than round numbers
+7. USE PRECISE DECIMALS throughout
 
 ═══════════════════════════════════════════════════════════════════════════════
 OUTPUT FORMAT
@@ -461,12 +423,12 @@ Return STRICT JSON with PRECISE DECIMAL SCORES:
   "results": [
     {
       "id": "bill_id",
-      "relevance": 0.00-1.00 (use decimals like 0.67, 0.43),
-      "personalScore": -10.00 to +10.00 (use decimals like 5.7, -2.35, 7.15),
+      "relevance": 0.00-1.00,
+      "personalScore": -10.00 to +10.00,
       "personalDirection": "positive" | "negative" | "neutral",
       "personalReasons": ["reason1", "reason2", "reason3"],
       "climateDirection": "positive" | "negative" | "neutral",
-      "climateScore": 0.00-10.00 (use decimals like 3.85, 6.2, 2.15),
+      "climateScore": 0.00-10.00,
       "climateReasons": ["reason1", "reason2", "reason3"],
       "impactMechanism": "Brief description of HOW this creates impact",
       "confidenceLevel": "high" | "medium" | "low"
@@ -476,16 +438,12 @@ Return STRICT JSON with PRECISE DECIMAL SCORES:
 
 CRITICAL REMINDERS:
 - USE PRECISE DECIMALS: 5.73 is better than 6.0, 3.15 is better than 3.0
-- Avoid round numbers (2.0, 5.0, 7.0) - use incremental values (2.15, 4.85, 6.7)
 - Use FULL range of scores. Most bills should be 2-6, with some reaching 7-8.
-- A score of 8.5+ should be RARE and well-justified (transformative policy).
-- Scores of 6-7 represent meaningful but moderate impact - use this range often.
-- Convenience ≠ savings, but significant convenience has value (1.8-3.2).
-- Be specific in reasons. "Supports clean energy" is too vague.
-- Consider: Does this DIRECTLY reduce emissions or ENABLE reductions?`;
+- A score of 8.5+ should be RARE and well-justified.
+- Be specific in reasons. "Supports clean energy" is too vague.`;
 
 // ============================================================================
-// AI SCORING FUNCTION
+// AI SCORING FUNCTION WITH ROBUST ERROR HANDLING
 // ============================================================================
 
 async function aiScoreBillsBatch(
@@ -547,29 +505,51 @@ Remember:
 - Consider this specific user's eligibility and situation
 - Enabling/accelerating clean energy has value (2.5-4.5 range typically)`;
 
-  const resp = await openai.chat.completions.create({
-    model,
-    temperature: 0.18,
-    response_format: { type: "json_object" } as any,
-    messages: [
-      { role: "system", content: SCORING_SYSTEM_PROMPT },
-      { role: "user", content: userPrompt },
-    ],
-  });
-
-  const raw = resp.choices?.[0]?.message?.content ?? "";
-  let parsed: any = null;
+  // Wrap OpenAI call in try-catch
+  let resp;
   try {
-    parsed = JSON.parse(raw);
-  } catch {
-    const start = raw.indexOf("{");
-    const end = raw.lastIndexOf("}");
-    if (start !== -1 && end !== -1) parsed = JSON.parse(raw.slice(start, end + 1));
+    resp = await openai.chat.completions.create({
+      model,
+      temperature: 0.18,
+      response_format: { type: "json_object" } as any,
+      messages: [
+        { role: "system", content: SCORING_SYSTEM_PROMPT },
+        { role: "user", content: userPrompt },
+      ],
+    });
+  } catch (apiError: any) {
+    console.error("[AI_SCORING] OpenAI API error:", apiError?.message || apiError);
+    console.error("[AI_SCORING] Error details:", {
+      status: apiError?.status,
+      code: apiError?.code,
+      type: apiError?.type
+    });
+    // Return empty results instead of crashing
+    return {};
+  }
+
+  const raw = resp?.choices?.[0]?.message?.content ?? "";
+  
+  // Validate response before parsing
+  if (!raw || raw.trim() === "") {
+    console.warn("[AI_SCORING] Empty response from OpenAI");
+    return {};
+  }
+
+  // Use safe JSON parsing
+  const parsed = safeParseJSON(raw);
+  
+  if (!parsed) {
+    console.error("[AI_SCORING] Failed to parse OpenAI response");
+    return {};
   }
 
   const out: Record<string, AIResult> = {};
   const results = parsed?.results;
-  if (!Array.isArray(results)) return out;
+  if (!Array.isArray(results)) {
+    console.warn("[AI_SCORING] No results array in response");
+    return out;
+  }
 
   for (const r of results) {
     const id = String(r?.id ?? "");
@@ -616,8 +596,13 @@ async function aiScoreBills(
   const all: Record<string, AIResult> = {};
   for (let i = 0; i < bills.length; i += batchSize) {
     const chunk = bills.slice(i, i + batchSize);
-    const scored = await aiScoreBillsBatch(openai, model, userProfile, chunk);
-    Object.assign(all, scored);
+    try {
+      const scored = await aiScoreBillsBatch(openai, model, userProfile, chunk);
+      Object.assign(all, scored);
+    } catch (err: any) {
+      console.error(`[AI_SCORING] Batch ${i}-${i + batchSize} failed:`, err?.message || err);
+      // Continue with other batches
+    }
   }
   return all;
 }
@@ -644,9 +629,18 @@ async function findRelevantBills(userProfile: UserProfile): Promise<NextResponse
   const RELEVANCE_THRESHOLD = Number(process.env.RELEVANCE_THRESHOLD ?? 0.22);
   const PERSONAL_WEIGHT = Number(process.env.PERSONAL_WEIGHT ?? 1.25);
 
+  let db: PrismaClient;
   try {
-    const db = getDatabaseClient();
+    db = getDatabaseClient();
+  } catch (dbError: any) {
+    console.error("[FIND_BILLS] Database connection failed:", dbError?.message);
+    return NextResponse.json({ 
+      error: "Database connection failed", 
+      details: dbError?.message || "Unable to connect to database"
+    }, { status: 503 });
+  }
 
+  try {
     const totalCount = await db.policy.count();
     console.log(`[FIND_BILLS] Total policies in DB: ${totalCount}`);
     if (totalCount === 0) {
@@ -742,14 +736,50 @@ async function findRelevantBills(userProfile: UserProfile): Promise<NextResponse
       personalHint: b.personalHint,
     }));
 
-    const openai = getOpenAIClient();
+    let openai: OpenAI;
+    try {
+      openai = getOpenAIClient();
+    } catch (apiKeyError: any) {
+      console.error("[FIND_BILLS] OpenAI client initialization failed:", apiKeyError?.message);
+      // Return bills without AI scoring
+      const fallbackBills = enriched.slice(0, 30).map((b) => ({
+        id: b.id,
+        identifier: b.identifier,
+        title: b.title,
+        summary: b.summary,
+        personalScore: 0,
+        personalLabel: "Scoring unavailable",
+        personalDirection: "neutral" as const,
+        personalReasons: [],
+        climateScore: 0,
+        climateLabel: "Scoring unavailable",
+        climateDirection: "neutral" as const,
+        climateReasons: [],
+        relevance: Math.max(Math.abs(b.climateHint), Math.abs(b.personalHint)),
+        jurisdictionCode: b.jurisdictionCode,
+        jurisdictionName: b.jurisdictionName,
+        status: b.status,
+        dateIntroduced: b.dateIntroduced,
+        tags: b.tags,
+        sources: b.sources,
+      }));
+      
+      return NextResponse.json({
+        bills: fallbackBills,
+        total: fallbackBills.length,
+        userState: normalizedState,
+        warning: "AI scoring unavailable - showing unscored results",
+      });
+    }
+
     const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
     let aiMap: Record<string, AIResult> = {};
     try {
       aiMap = await aiScoreBills(openai, model, userProfile, aiInput, AI_BATCH_SIZE);
+      console.log(`[FIND_BILLS] AI scored ${Object.keys(aiMap).length} bills`);
     } catch (e: any) {
-      console.warn("[FIND_BILLS] AI scoring failed; showing empty list:", e?.message || e);
+      console.warn("[FIND_BILLS] AI scoring failed; continuing with fallback:", e?.message || e);
       aiMap = {};
     }
 
@@ -774,7 +804,6 @@ async function findRelevantBills(userProfile: UserProfile): Promise<NextResponse
       const impactMechanism = ai?.impactMechanism || "Not analyzed";
       const confidenceLevel = ai?.confidenceLevel || "low";
 
-      // Ranking formula - penalize negative scores less in ranking (still show harmful bills)
       const rank = Math.abs(personalScore) * PERSONAL_WEIGHT + climateScore + relevance * 1.6;
 
       return {
@@ -822,79 +851,37 @@ async function findRelevantBills(userProfile: UserProfile): Promise<NextResponse
       total: relevantBills.length,
       userState: normalizedState,
       scoringExplanation: {
-        methodology: "V8.1 Calibrated Scoring: Rigorous rubrics with precise decimal scores. Climate scores based on tangible emissions impact while recognizing enabling effects. Financial scores calibrated to actual dollar amounts.",
+        methodology: "V8.1 Calibrated Scoring",
         stateFiltering: `Bills strictly filtered to ${normalizedState} jurisdiction only.`,
-        scoreInterpretation: {
-          financial: "5.5-6.9 = ~$75-175/month savings, 7.0-8.4 = $175-400/month, 8.5+ = exceptional ($400+/month or $8k+ one-time). Negative scores indicate costs. Scores use precise decimals.",
-          climate: "5.2-6.7 = meaningful significant impact, 6.8-8.4 = major direct impact, 8.5+ = transformative (rare). 2.5-3.7 = enabling/supporting. 1.5-2.4 = indirect/supportive. Scores use precise decimals."
-        },
-        knobs: {
-          MAX_BILLS_FETCH,
-          AI_SHORTLIST,
-          AI_BATCH_SIZE,
-          RELEVANCE_THRESHOLD,
-          PERSONAL_WEIGHT,
-        },
         developer: "Created by Leo Levitt",
       },
     });
   } catch (error: any) {
     console.error("[FIND_BILLS] Error:", error);
-    return NextResponse.json({ error: "Failed to fetch bills", details: error.message }, { status: 500 });
+    return NextResponse.json({ 
+      error: "Failed to fetch bills", 
+      details: error?.message || "Unknown error"
+    }, { status: 500 });
   }
 }
 
 // ============================================================================
-// COMPREHENSIVE BILL ANALYSIS - Much more rigorous and specific
+// COMPREHENSIVE BILL ANALYSIS
 // ============================================================================
 
 const ANALYSIS_SYSTEM_PROMPT = `You are Climate Impact Compass, an expert policy analyst created by Leo Levitt.
 
 Your role is to provide COMPREHENSIVE, RIGOROUS, HONEST analysis of climate and energy legislation for everyday citizens.
 
-═══════════════════════════════════════════════════════════════════════════════
-CORE PRINCIPLES
-═══════════════════════════════════════════════════════════════════════════════
-
+CORE PRINCIPLES:
 1. BE RIGOROUS: Base ALL analysis on the actual bill text provided. Never hallucinate provisions, dollar amounts, or requirements.
-
 2. BE SPECIFIC: Generic statements like "may provide benefits" are useless. Say exactly what, how much, and for whom.
-
 3. BE HONEST ABOUT UNCERTAINTY: If the bill doesn't specify dollar amounts, say "Not specified in bill text." Don't guess.
-
 4. BE CRITICAL: Identify weaknesses, implementation challenges, and reasons the bill might not deliver its promised benefits.
-
-5. CONSIDER THE MECHANISM: Don't just say what the bill aims to do - explain HOW it creates impact and whether that mechanism is likely to work.
-
+5. CONSIDER THE MECHANISM: Don't just say what the bill aims to do - explain HOW it creates impact.
 6. ACKNOWLEDGE LIMITATIONS: Payment standardization ≠ emissions reduction. Workforce training ≠ immediate climate benefit. Be precise.
 
-═══════════════════════════════════════════════════════════════════════════════
-ANALYSIS DEPTH REQUIREMENTS
-═══════════════════════════════════════════════════════════════════════════════
-
-For FINANCIAL analysis:
-- Calculate actual dollar amounts where possible
-- Compare to user's specific income level
-- Identify ALL eligibility requirements (don't miss disqualifiers)
-- Note if benefit is one-time vs. ongoing
-- Assess probability of user actually receiving benefit
-- Identify upfront costs, paperwork burden, timing constraints
-- Provide SPECIFIC next steps with real resources
-
-For CLIMATE analysis:
-- Quantify emissions impact where possible (tons CO2, % reduction)
-- Identify the CAUSAL MECHANISM (how does this reduce emissions?)
-- Distinguish direct vs. indirect impacts
-- Compare to state/national goals for context
-- Assess likelihood of implementation success
-- Identify potential unintended consequences
-- Be honest if impact is primarily symbolic/educational
-
-═══════════════════════════════════════════════════════════════════════════════
-USER PERSONALIZATION
-═══════════════════════════════════════════════════════════════════════════════
-
-You MUST tailor analysis to the specific user. Consider:
+USER PERSONALIZATION - You MUST tailor analysis to the specific user. Consider:
 - Renter vs. owner (renters can't install solar, change HVAC, etc.)
 - Income level (affects eligibility, ability to access benefits)
 - Property type (apartment dweller vs. single-family home)
@@ -902,24 +889,29 @@ You MUST tailor analysis to the specific user. Consider:
 - Location within state (urban vs. rural considerations)
 - Ability to make changes (lease restrictions, HOA rules)
 
-═══════════════════════════════════════════════════════════════════════════════
-IMPORTANT REMINDERS
-═══════════════════════════════════════════════════════════════════════════════
-
+IMPORTANT REMINDERS:
 - If bill text doesn't specify something, say "Not specified in bill text"
 - Don't inflate benefits - be conservative in estimates
 - Acknowledge when provisions are vague or discretionary
 - Note if funding is appropriated or just authorized
-- Identify who actually administers the program
 - Consider implementation timeline realistically
 - Be honest about barriers and challenges`;
 
 async function analyzeBill(billId: string, userProfile: UserProfile): Promise<NextResponse> {
   console.log(`\n[ANALYZE_BILL] Starting comprehensive analysis for bill: ${billId}`);
 
+  let db: PrismaClient;
   try {
-    const db = getDatabaseClient();
+    db = getDatabaseClient();
+  } catch (dbError: any) {
+    console.error("[ANALYZE_BILL] Database connection failed:", dbError?.message);
+    return NextResponse.json({ 
+      error: "Database connection failed", 
+      details: dbError?.message || "Unable to connect to database"
+    }, { status: 503 });
+  }
 
+  try {
     const bill = await db.policy.findUnique({
       where: { id: billId },
       include: { 
@@ -935,19 +927,27 @@ async function analyzeBill(billId: string, userProfile: UserProfile): Promise<Ne
       return NextResponse.json({ error: "Bill not found" }, { status: 404 });
     }
 
-    // Verify state match
     if (!jurisdictionMatchesState(bill.jurisdictionCode, bill.jurisdictionName, userProfile.state)) {
       console.warn(`[ANALYZE_BILL] Bill ${billId} is from ${bill.jurisdictionCode}, but user is from ${userProfile.state}`);
     }
 
     console.log(`[ANALYZE_BILL] Found bill: ${bill.title} (${bill.jurisdictionCode})`);
 
-    // Get scores for this bill
     const tags = bill.tags.map((t) => t.tag);
     const text = joinLowercase(bill.title, bill.summary);
     const { climateHint, personalHint } = computeHints(tags, text);
 
-    const openai = getOpenAIClient();
+    let openai: OpenAI;
+    try {
+      openai = getOpenAIClient();
+    } catch (apiKeyError: any) {
+      console.error("[ANALYZE_BILL] OpenAI client initialization failed:", apiKeyError?.message);
+      return NextResponse.json({ 
+        error: "AI service unavailable", 
+        details: "OpenAI API key is missing or invalid"
+      }, { status: 503 });
+    }
+
     const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
     // Get calibrated scores
@@ -963,15 +963,13 @@ async function analyzeBill(billId: string, userProfile: UserProfile): Promise<Ne
       }]);
       billScores = scoringResult[bill.id] || null;
       console.log(`[ANALYZE_BILL] Retrieved scores - Personal: ${billScores?.personalScore}, Climate: ${billScores?.climateScore} (${billScores?.climateDirection})`);
-    } catch (e) {
-      console.warn("[ANALYZE_BILL] Could not fetch scores, proceeding without them:", e);
+    } catch (e: any) {
+      console.warn("[ANALYZE_BILL] Could not fetch scores, proceeding without them:", e?.message);
     }
 
     const userPrompt = `Analyze this bill with DEPTH, RIGOR, and HONESTY for this SPECIFIC user.
 
-═══════════════════════════════════════════════════════════════════════════════
-USER'S COMPLETE PROFILE
-═══════════════════════════════════════════════════════════════════════════════
+USER'S COMPLETE PROFILE:
 - Location: ZIP ${userProfile.zip}, ${userProfile.state}
 - Housing: ${userProfile.housing_status}, ${userProfile.property_type}
 - Home age: ${userProfile.home_age || "Not specified"}
@@ -985,10 +983,8 @@ USER'S COMPLETE PROFILE
 - Owns business: ${userProfile.own_business || "Not specified"}
 - Job sector: ${userProfile.job_sector || "Not specified"}
 
-═══════════════════════════════════════════════════════════════════════════════
-CALIBRATED SCORES (your analysis must align with these)
-═══════════════════════════════════════════════════════════════════════════════
 ${billScores ? `
+CALIBRATED SCORES (your analysis must align with these):
 Personal Financial Score: ${billScores.personalScore}/10 (${getPersonalScoreLabel(billScores.personalScore)})
 - Direction: ${billScores.personalDirection}
 - Reasons: ${billScores.personalReasons.join("; ")}
@@ -996,16 +992,9 @@ Personal Financial Score: ${billScores.personalScore}/10 (${getPersonalScoreLabe
 Climate Score: ${billScores.climateScore}/10 ${billScores.climateDirection} (${getClimateScoreLabel(billScores.climateScore, billScores.climateDirection)})
 - Reasons: ${billScores.climateReasons.join("; ")}
 - Impact mechanism: ${billScores.impactMechanism}
-
-YOUR ANALYSIS MUST BE CONSISTENT WITH THESE SCORES. 
-- A climate score of 2-3 means this is indirect/supportive, NOT a major climate action.
-- A personal score of 2-3 means minimal direct benefit, NOT significant savings.
-- Don't overstate benefits that aren't reflected in the scores.
 ` : "Scores not available - be conservative in your assessment."}
 
-═══════════════════════════════════════════════════════════════════════════════
-BILL TO ANALYZE
-═══════════════════════════════════════════════════════════════════════════════
+BILL TO ANALYZE:
 Title: ${bill.title}
 Status: ${bill.status}
 Jurisdiction: ${bill.jurisdictionName} (${bill.jurisdictionCode})
@@ -1015,191 +1004,43 @@ Tags: ${tags.join(", ")}
 Summary/Text:
 ${bill.summary || "No summary available - be especially careful about claims."}
 
-═══════════════════════════════════════════════════════════════════════════════
-OUTPUT REQUIREMENTS
-═══════════════════════════════════════════════════════════════════════════════
-
-Provide STRICT JSON with the following structure. Be thorough but honest.
-For each section, if information is not in the bill text, say "Not specified in bill text."
-
-{
-  "overview": {
-    "plain_english_summary": "5-6 sentences explaining what this bill actually does in simple terms. Be specific about mechanisms, not just goals.",
-    "what_this_means_for_you": "4-5 sentences for THIS specific user. Be honest about relevance level. If impact is minimal, say so clearly.",
-    "honest_assessment": "2-3 sentences of critical analysis: What are the limitations? What might not work as intended?",
-    "key_provisions": ["8-10 specific provisions from the bill text"],
-    "timeline_and_status": {
-      "current_status": "string",
-      "when_it_takes_effect": "string or 'Not specified'",
-      "key_deadlines": ["array"],
-      "what_needs_to_happen_next": "string",
-      "implementation_risks": "What could delay or prevent implementation?"
-    }
-  },
-  
-  "your_specific_situation": {
-    "relevance_to_you": "3-4 sentences. Be honest - if this doesn't really apply to them, say so.",
-    "provisions_that_apply_to_you": ["Only list provisions that ACTUALLY apply given their profile"],
-    "provisions_that_dont_apply": ["Be specific about WHY each doesn't apply"],
-    "your_best_opportunities": ["Ranked, with realistic probability assessment"],
-    "your_biggest_barriers": ["Specific to their situation"],
-    "honest_bottom_line": "One sentence: What's the realistic best-case outcome for this specific user?"
-  },
-  
-  "financial_impact_for_you": {
-    "bottom_line": "3-4 sentences. Include actual dollar estimates ONLY if in bill text, otherwise say 'amounts not specified'.",
-    "specific_benefits_for_your_situation": ["8-10 items. For each: what it is, eligibility, estimated value (or 'not specified'), probability of access"],
-    "how_you_qualify": ["Specific eligibility criteria checked against their profile"],
-    "what_disqualifies_you": ["Any criteria they DON'T meet"],
-    "estimated_savings_range": "Be conservative. If not specified, say 'Cannot estimate from bill text'",
-    "one_time_vs_ongoing": "Clarify if benefits are one-time or recurring",
-    "how_to_actually_get_the_money": ["Specific actionable steps with real resources"],
-    "potential_obstacles": ["Realistic barriers: paperwork, timing, funding limits, etc."],
-    "upfront_costs": "What they'd need to spend to access benefits",
-    "hidden_costs": ["Any costs not immediately obvious"],
-    "compared_to_alternatives": "How does this compare to existing programs?"
-  },
-  
-  "environmental_impact_explained": {
-    "what_this_means_for_climate": "4-5 sentences. Be specific about the MECHANISM of impact. If indirect, say so.",
-    "quantified_impact": "Specific numbers if available (tons CO2, % reduction) or 'Not quantified in bill'",
-    "causal_mechanism": "HOW does this reduce emissions? Be specific.",
-    "direct_vs_indirect": "Is this directly reducing emissions or just supporting/enabling?",
-    "local_environmental_benefits": ["7-8 tangible impacts. Be realistic, not aspirational."],
-    "if_you_participate_personally": ["What YOUR contribution would be, with comparisons"],
-    "bigger_picture": "How does this fit into state/national climate goals?",
-    "why_this_matters_for_your_community": ["5-6 local benefits"],
-    "limitations_and_caveats": ["What this bill WON'T accomplish", "Potential unintended consequences"],
-    "state_context": "How does ${userProfile.state} compare on climate action?"
-  },
-  
-  "detailed_bill_provisions": {
-    "provision_by_provision_analysis": ["6-8 provisions, each with: exact text/summary, impact on THIS user, dollar amounts, example, critical assessment"],
-    "which_parts_matter_most_to_you": ["4-5 ranked by relevance to this user"],
-    "implementation_mechanisms": ["How will this actually be implemented?"],
-    "enforcement": "How will compliance be ensured?",
-    "funding_sources": ["Where does the money come from? Is it appropriated or just authorized?"],
-    "funding_adequacy": "Is funding sufficient for stated goals?"
-  },
-  
-  "eligibility_and_requirements": {
-    "who_this_is_for": ["8-10 specific eligible situations"],
-    "who_this_is_NOT_for": ["5-6 ineligible situations - be thorough"],
-    "your_eligibility_assessment": {
-      "criteria_you_meet": ["List with explanation"],
-      "criteria_you_dont_meet": ["List with explanation"],
-      "uncertain_criteria": ["Need more info"],
-      "overall_eligibility": "Likely eligible / Possibly eligible / Likely ineligible / Definitely ineligible"
-    },
-    "documentation_youll_need": ["7-8 specific documents"],
-    "income_requirements": "Specific limits compared to user's stated income",
-    "property_requirements": ["Specific to their property type"],
-    "timing_requirements": ["Deadlines, windows, sequencing"],
-    "special_considerations": ["Exceptions, waivers, edge cases"]
-  },
-  
-  "what_we_know_and_dont_know": {
-    "definitely_established": ["8-10 facts clearly stated in bill"],
-    "still_to_be_determined": ["6-8 things that will be decided by regulators/agencies"],
-    "potential_risks_and_downsides": ["6-7 honest risks for THIS user - don't sugarcoat"],
-    "questions_nobody_can_answer_yet": ["5-6 genuine unknowns"],
-    "what_could_go_wrong": ["Implementation failures, funding shortfalls, etc."],
-    "what_to_watch_for": ["4-5 future developments to monitor"]
-  },
-  
-  "your_action_plan": {
-    "should_you_care": "Honest assessment: Is this worth your time and attention?",
-    "do_this_now": ["5-6 immediate actions - only if actually relevant"],
-    "do_this_soon": ["6-7 next 3-6 months"],
-    "plan_for_later": ["4-5 long-term"],
-    "questions_to_ask": {
-      "ask_your_utility_company": ["5-6 specific questions"],
-      "ask_contractors": ["5-6 specific questions"],
-      "ask_your_state_agency": ["5-6 specific questions"]
-    },
-    "resources_and_help": ["6-7 ${userProfile.state} resources with actual contact info/websites"],
-    "decision_framework": ["4-5 key factors for deciding whether to act"],
-    "if_you_do_nothing": "What happens if you ignore this bill entirely?"
-  },
-  
-  "real_world_context": {
-    "similar_programs": ["4-5 comparable programs if known"],
-    "what_makes_this_different": ["3-4 distinguishing features"],
-    "track_record": "How have similar policies performed elsewhere?",
-    "potential_challenges": ["6-7 realistic implementation challenges"],
-    "success_factors": ["5-6 what needs to go right"],
-    "lessons_from_other_states": ["3-4 if applicable"],
-    "political_durability": "How likely is this to survive future legislative changes?"
-  },
-  
-  "local_and_regional_impact": {
-    "cities_and_regions_affected": ["6-7 specific places in ${userProfile.state}"],
-    "your_area_specifically": ["5-6 impacts near ZIP ${userProfile.zip}"],
-    "urban_vs_rural": "How does impact differ by location?",
-    "local_economic_impact": ["4-5 economic effects"],
-    "community_benefits": ["4-5 community-level benefits"],
-    "equity_considerations": "How does this affect different income levels/communities?"
-  },
-  
-  "common_questions_answered": {
-    "is_this_a_tax_increase": "Detailed answer for income ${userProfile.household_income || 'not specified'}",
-    "do_i_have_to_do_anything": "Detailed answer - is action required or optional?",
-    "what_if_i_rent": "Specific answer for ${userProfile.housing_status}",
-    "what_if_im_low_income": "Answer with specific income thresholds",
-    "what_if_i_own_a_business": "Answer for ${userProfile.own_business || 'not specified'}",
-    "how_long_does_this_take": "Realistic timeline",
-    "is_the_paperwork_complicated": "Honest assessment of administrative burden",
-    "what_about_maintenance": "Ongoing costs and responsibilities",
-    "can_i_combine_with_other_programs": "Stacking opportunities in ${userProfile.state}",
-    "what_if_i_dont_qualify": "Alternatives and other options",
-    "is_this_worth_my_time": "Honest cost-benefit assessment",
-    "other_important_questions": ["5-6 bill-specific questions"]
-  },
-  
-  "critical_assessment": {
-    "strengths": ["What this bill does well"],
-    "weaknesses": ["What this bill does poorly or leaves unaddressed"],
-    "who_benefits_most": "Which groups get the most value?",
-    "who_benefits_least": "Which groups are left out?",
-    "implementation_grade": "A-F grade for how well this can be implemented",
-    "overall_value_for_you": "Given everything, is this bill valuable FOR THIS SPECIFIC USER?"
-  }
-}`;
+Provide STRICT JSON with comprehensive analysis including: overview, your_specific_situation, financial_impact_for_you, environmental_impact_explained, detailed_bill_provisions, eligibility_and_requirements, what_we_know_and_dont_know, your_action_plan, real_world_context, local_and_regional_impact, common_questions_answered, and critical_assessment.`;
 
     console.log(`[ANALYZE_BILL] Sending comprehensive analysis request...`);
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      temperature: 0.2,
-      response_format: { type: "json_object" } as any,
-      messages: [
-        { role: "system", content: ANALYSIS_SYSTEM_PROMPT },
-        { role: "user", content: userPrompt },
-      ],
-    });
-
-    const rawContent = response.choices?.[0]?.message?.content ?? "";
-    console.log(`[ANALYZE_BILL] Received ${rawContent.length} chars`);
-
-    let analysis: any = null;
-
+    let response;
     try {
-      analysis = JSON.parse(rawContent);
-    } catch {
-      const start = rawContent.indexOf("{");
-      const end = rawContent.lastIndexOf("}");
-      if (start !== -1 && end !== -1) {
-        analysis = JSON.parse(rawContent.slice(start, end + 1));
-      }
-    }
-
-    if (!analysis) {
+      response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        temperature: 0.2,
+        response_format: { type: "json_object" } as any,
+        messages: [
+          { role: "system", content: ANALYSIS_SYSTEM_PROMPT },
+          { role: "user", content: userPrompt },
+        ],
+      });
+    } catch (apiError: any) {
+      console.error("[ANALYZE_BILL] OpenAI API error:", apiError?.message || apiError);
       return NextResponse.json({ 
-        error: "AI returned invalid response"
+        error: "AI analysis failed", 
+        details: apiError?.message || "OpenAI API request failed"
       }, { status: 502 });
     }
 
-    // Safe extraction with all the new fields
+    const rawContent = response?.choices?.[0]?.message?.content ?? "";
+    console.log(`[ANALYZE_BILL] Received ${rawContent.length} chars`);
+
+    const analysis = safeParseJSON(rawContent);
+
+    if (!analysis) {
+      console.error("[ANALYZE_BILL] Failed to parse AI response");
+      return NextResponse.json({ 
+        error: "AI returned invalid response",
+        details: "Could not parse the analysis response as JSON"
+      }, { status: 502 });
+    }
+
+    // Safe extraction with all the new fields (keeping backward compatibility)
     const safeAnalysis = {
       overview: {
         plain_english_summary: analysis.overview?.plain_english_summary || "Analysis unavailable",
@@ -1213,7 +1054,6 @@ For each section, if information is not in the bill text, say "Not specified in 
           what_needs_to_happen_next: analysis.overview?.timeline_and_status?.what_needs_to_happen_next || "Unknown",
           implementation_risks: analysis.overview?.timeline_and_status?.implementation_risks || "Not assessed"
         },
-        // BACKWARD COMPATIBILITY
         timeline: analysis.overview?.timeline_and_status?.when_it_takes_effect || "Not specified",
         implementation_status: analysis.overview?.timeline_and_status?.current_status || "Status unclear"
       },
@@ -1238,7 +1078,6 @@ For each section, if information is not in the bill text, say "Not specified in 
         hidden_costs: Array.isArray(analysis.financial_impact_for_you?.hidden_costs) ? analysis.financial_impact_for_you.hidden_costs : [],
         compared_to_alternatives: analysis.financial_impact_for_you?.compared_to_alternatives || "Not assessed"
       },
-      // BACKWARD COMPATIBILITY
       personalized_financial_analysis: {
         direct_benefits: Array.isArray(analysis.financial_impact_for_you?.specific_benefits_for_your_situation) ? analysis.financial_impact_for_you.specific_benefits_for_your_situation : [],
         eligibility_factors: Array.isArray(analysis.financial_impact_for_you?.how_you_qualify) ? analysis.financial_impact_for_you.how_you_qualify : [],
@@ -1258,7 +1097,6 @@ For each section, if information is not in the bill text, say "Not specified in 
         limitations_and_caveats: Array.isArray(analysis.environmental_impact_explained?.limitations_and_caveats) ? analysis.environmental_impact_explained.limitations_and_caveats : [],
         state_context: analysis.environmental_impact_explained?.state_context || "Not assessed"
       },
-      // BACKWARD COMPATIBILITY
       personalized_climate_analysis: {
         environmental_benefits: Array.isArray(analysis.environmental_impact_explained?.local_environmental_benefits) ? analysis.environmental_impact_explained.local_environmental_benefits : [],
         local_impact: Array.isArray(analysis.environmental_impact_explained?.local_environmental_benefits) ? analysis.environmental_impact_explained.local_environmental_benefits : [],
@@ -1288,7 +1126,6 @@ For each section, if information is not in the bill text, say "Not specified in 
         timing_requirements: Array.isArray(analysis.eligibility_and_requirements?.timing_requirements) ? analysis.eligibility_and_requirements.timing_requirements : [],
         special_considerations: Array.isArray(analysis.eligibility_and_requirements?.special_considerations) ? analysis.eligibility_and_requirements.special_considerations : []
       },
-      // BACKWARD COMPATIBILITY
       detailed_requirements: {
         who_qualifies: Array.isArray(analysis.eligibility_and_requirements?.who_this_is_for) ? analysis.eligibility_and_requirements.who_this_is_for : [],
         documentation_needed: Array.isArray(analysis.eligibility_and_requirements?.documentation_youll_need) ? analysis.eligibility_and_requirements.documentation_youll_need : [],
@@ -1306,7 +1143,6 @@ For each section, if information is not in the bill text, say "Not specified in 
         what_could_go_wrong: Array.isArray(analysis.what_we_know_and_dont_know?.what_could_go_wrong) ? analysis.what_we_know_and_dont_know.what_could_go_wrong : [],
         what_to_watch_for: Array.isArray(analysis.what_we_know_and_dont_know?.what_to_watch_for) ? analysis.what_we_know_and_dont_know.what_to_watch_for : []
       },
-      // BACKWARD COMPATIBILITY
       certainties_and_uncertainties: {
         what_is_certain: Array.isArray(analysis.what_we_know_and_dont_know?.definitely_established) ? analysis.what_we_know_and_dont_know.definitely_established : [],
         what_depends_on_implementation: Array.isArray(analysis.what_we_know_and_dont_know?.still_to_be_determined) ? analysis.what_we_know_and_dont_know.still_to_be_determined : [],
@@ -1327,7 +1163,6 @@ For each section, if information is not in the bill text, say "Not specified in 
         decision_framework: Array.isArray(analysis.your_action_plan?.decision_framework) ? analysis.your_action_plan.decision_framework : [],
         if_you_do_nothing: analysis.your_action_plan?.if_you_do_nothing || "Not assessed"
       },
-      // BACKWARD COMPATIBILITY
       action_plan: {
         immediate_steps: Array.isArray(analysis.your_action_plan?.do_this_now) ? analysis.your_action_plan.do_this_now : [],
         medium_term_steps: Array.isArray(analysis.your_action_plan?.do_this_soon) ? analysis.your_action_plan.do_this_soon : [],
@@ -1347,7 +1182,6 @@ For each section, if information is not in the bill text, say "Not specified in 
         lessons_from_other_states: Array.isArray(analysis.real_world_context?.lessons_from_other_states) ? analysis.real_world_context.lessons_from_other_states : [],
         political_durability: analysis.real_world_context?.political_durability || "Not assessed"
       },
-      // BACKWARD COMPATIBILITY
       local_context: {
         local_programs: Array.isArray(analysis.real_world_context?.similar_programs) ? analysis.real_world_context.similar_programs : [],
         local_considerations: Array.isArray(analysis.real_world_context?.potential_challenges) ? analysis.real_world_context.potential_challenges : [],
@@ -1398,7 +1232,6 @@ For each section, if information is not in the bill text, say "Not specified in 
         dateIntroduced: bill.dateIntroduced?.toISOString() || null,
         sources: bill.sources
       },
-      // Include the calibrated scores
       scores: billScores ? {
         personalScore: billScores.personalScore,
         personalLabel: getPersonalScoreLabel(billScores.personalScore),
@@ -1413,31 +1246,38 @@ For each section, if information is not in the bill text, say "Not specified in 
       } : null,
       scoringMethodology: {
         version: "V8.1 Calibrated",
-        description: "Rigorous scoring with precise decimal calibration. Climate scores based on tangible emissions impact while recognizing enabling effects. Financial scores calibrated to actual dollar amounts with granular precision.",
-        interpretation: {
-          financial: "5.5-6.9 = ~$75-175/month savings, 7.0-8.4 = $175-400/month, 8.5+ = exceptional. Negative = costs. Uses precise decimals.",
-          climate: "5.2-6.7 = meaningful significant, 6.8-8.4 = major direct, 8.5+ = transformative. 2.5-3.7 = enabling. 1.5-2.4 = indirect/supportive. Uses precise decimals."
-        }
+        description: "Rigorous scoring with precise decimal calibration.",
       }
     });
   } catch (error: any) {
     console.error("[ANALYZE_BILL] Error:", error);
     return NextResponse.json({ 
       error: "Failed to analyze bill", 
-      details: error.message
+      details: error?.message || "Unknown error"
     }, { status: 500 });
   }
 }
 
 // ============================================================================
-// MAIN HANDLER
+// MAIN HANDLER WITH ROBUST ERROR HANDLING
 // ============================================================================
 
 export async function POST(req: Request) {
   const startTime = Date.now();
 
   try {
-    const body = await req.json();
+    // Parse request body with error handling
+    let body: any;
+    try {
+      body = await req.json();
+    } catch (parseError: any) {
+      console.error("[POST] Failed to parse request body:", parseError?.message);
+      return NextResponse.json(
+        { error: "Invalid JSON in request body", details: parseError?.message },
+        { status: 400 }
+      );
+    }
+
     const userProfile = normalizeInput(body);
     const mode = body.mode || "find_bills";
 
@@ -1457,12 +1297,14 @@ export async function POST(req: Request) {
     console.log(`✓ Completed in ${Date.now() - startTime}ms\n`);
     return response;
   } catch (error: any) {
-    console.error(`✗ Failed:`, error.message);
+    console.error(`✗ Failed:`, error?.message || error);
+    
+    // Always return valid JSON
     return NextResponse.json(
       {
         error: "Internal server error",
-        message: error.message,
-        ...(process.env.NODE_ENV === "development" && { stack: error.stack }),
+        message: error?.message || "An unexpected error occurred",
+        ...(process.env.NODE_ENV === "development" && { stack: error?.stack }),
       },
       { status: 500 }
     );
